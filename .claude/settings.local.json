@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/test_model.py::TestModelFromHuggingFace::test_create_model_from_hf -v --tb=long)",
+      "Bash(npm test)",
+      "Bash(npm uninstall:*)",
+      "Bash(python -c:*)",
+      "Bash(PYTHONPATH=. python:*)",
+      "Bash(timeout 5 uvicorn:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(pip show:*)",
+      "Bash(pip:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(uvicorn:*)",
+      "Bash(wmic:*)",
+      "Bash(dir:*)",
+      "Bash(npm run build)",
+      "Bash(pnpm install)",
+      "Bash(pnpm test:run)",
+      "Bash(pnpm add:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
