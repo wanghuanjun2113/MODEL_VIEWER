@@ -9,6 +9,8 @@ __pycache__/
 env/
 venv/
 ENV/
+*.egg-info/
+dist/
 
 # Database
 *.db
