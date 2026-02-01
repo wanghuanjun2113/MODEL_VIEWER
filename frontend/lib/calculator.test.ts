@@ -38,7 +38,10 @@ describe("Calculator", () => {
   const baseInput: CalculationInput = {
     hardware_id: "1",
     model_id: "1",
+    gpu_count: 1,
     precision: "FP16",
+    attention_precision: "FP16",
+    ffn_precision: "FP16",
     first_token_latency_ms: 100,
     tpot_ms: 20,
     context_length: 2048,
@@ -66,8 +69,18 @@ describe("Calculator", () => {
     });
 
     it("should return different results for different precisions", () => {
-      const fp16Input = { ...baseInput, precision: "FP16" as const };
-      const fp32Input = { ...baseInput, precision: "FP32" as const };
+      const fp16Input = {
+        ...baseInput,
+        precision: "FP16" as const,
+        attention_precision: "FP16" as const,
+        ffn_precision: "FP16" as const,
+      };
+      const fp32Input = {
+        ...baseInput,
+        precision: "FP32" as const,
+        attention_precision: "FP32" as const,
+        ffn_precision: "FP32" as const,
+      };
 
       const fp16Result = calculateMFU(fp16Input, mockHardware, mockModel);
       const fp32Result = calculateMFU(fp32Input, mockHardware, mockModel);
@@ -163,6 +176,71 @@ describe("Calculator", () => {
 
       // Large context and short TPOT should indicate memory-bound
       expect(["compute", "memory", "balanced"]).toContain(result.bottleneck_type);
+    });
+  });
+
+  describe("Multi-GPU calculations", () => {
+    it("should increase peak FLOPs with GPU count", () => {
+      const singleGPU = { ...baseInput, gpu_count: 1 };
+      const eightGPU = { ...baseInput, gpu_count: 8 };
+
+      const singleResult = calculateMFU(singleGPU, mockHardware, mockModel);
+      const eightResult = calculateMFU(eightGPU, mockHardware, mockModel);
+
+      // 8 GPU should have 8x peak FLOPs
+      expect(eightResult.actual_flops).toBe(singleResult.actual_flops);
+      // Peak FLOPs should scale with GPU count
+      expect(eightResult.peak_flops).toBe(singleResult.peak_flops * 8);
+    });
+
+    it("should decrease memory bandwidth utilization with more GPUs", () => {
+      const singleGPU = { ...baseInput, gpu_count: 1 };
+      const eightGPU = { ...baseInput, gpu_count: 8 };
+
+      const singleResult = calculateMFU(singleGPU, mockHardware, mockModel);
+      const eightResult = calculateMFU(eightGPU, mockHardware, mockModel);
+
+      // More GPUs should result in lower bandwidth utilization per GPU
+      expect(eightResult.memory_bandwidth_utilization).toBeLessThan(singleResult.memory_bandwidth_utilization);
+    });
+
+    it("should handle all GPU count options", () => {
+      const gpuCounts = [1, 2, 4, 8, 16, 32];
+      let prevPeakFlops = 0;
+
+      for (const gpuCount of gpuCounts) {
+        const input = { ...baseInput, gpu_count: gpuCount };
+        const result = calculateMFU(input, mockHardware, mockModel);
+
+        // Peak FLOPs should increase with GPU count
+        expect(result.peak_flops).toBeGreaterThan(prevPeakFlops);
+        prevPeakFlops = result.peak_flops;
+
+        // Peak FLOPs should scale linearly
+        const expectedPeak = mockHardware.fp16_peak_tflops * gpuCount;
+        expect(result.peak_flops).toBe(expectedPeak);
+      }
+    });
+
+    it("should have correct default gpu_count", () => {
+      const input = {
+        hardware_id: "1",
+        model_id: "1",
+        gpu_count: 1,  // Explicit default
+        precision: "FP16" as const,
+        attention_precision: "FP16" as const,
+        ffn_precision: "FP16" as const,
+        first_token_latency_ms: 100,
+        tpot_ms: 20,
+        context_length: 2048,
+        generated_length: 256,
+        batch_size: 1,
+      };
+
+      const result = calculateMFU(input, mockHardware, mockModel);
+
+      // Should use default gpu_count of 1
+      expect(result.peak_flops).toBe(mockHardware.fp16_peak_tflops);
     });
   });
 });

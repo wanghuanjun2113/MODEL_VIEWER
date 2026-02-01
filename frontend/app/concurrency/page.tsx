@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/header";
 import { ConcurrencyForm } from "@/components/concurrency/concurrency-form";
 import { ConcurrencyResults } from "@/components/concurrency/concurrency-results";
@@ -11,6 +11,11 @@ export default function ConcurrencyPage() {
   const { t } = useLanguageStore();
   const [result, setResult] = useState<ConcurrencyResult | null>(null);
   const [key, setKey] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleCalculate = (newResult: ConcurrencyResult) => {
     setResult(newResult);
@@ -23,10 +28,10 @@ export default function ConcurrencyPage() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-balance">
-            {t("concurrencyCalculator")}
+            {mounted ? t("concurrencyCalculator") : "Concurrency Calculator"}
           </h1>
           <p className="mt-1 text-muted-foreground">
-            {t("concurrencyCalculatorDescription")}
+            {mounted ? t("concurrencyCalculatorDescription") : "Calculate maximum concurrent requests based on memory constraints"}
           </p>
         </div>
 

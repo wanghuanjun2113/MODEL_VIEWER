@@ -46,6 +46,7 @@ export type ApiPrecision = "fp16" | "bf16" | "fp32";
 export interface ApiCalculationInput {
   hardware_id: number;
   model_id: number;
+  gpu_count: number;  // Number of GPUs (1, 2, 4, 8, 16, 32)
   precision: ApiPrecision;  // General precision (backward compatibility)
   attention_precision: ApiPrecision;  // Attention layer precision
   ffn_precision: ApiPrecision;  // FFN layer precision
@@ -85,6 +86,39 @@ export interface ApiCalculationResponse {
   result: ApiCalculationResult | null;
   error: string | null;
   suggestions: ApiOptimizationSuggestion[];
+}
+
+// Concurrency calculator types
+export interface ApiConcurrencyInput {
+  hardware_id: number;
+  model_id: number;
+  gpu_count: number;  // Number of GPUs (1, 2, 4, 8, 16, 32)
+  context_length: number;
+  precision: ApiPrecision;
+  framework_overhead_gb: number;
+}
+
+export interface ApiMemoryBreakdown {
+  weight_memory_gb: number;
+  framework_overhead_gb: number;
+  kv_cache_memory_gb: number;
+  activation_memory_gb: number;
+  total_memory_gb: number;
+}
+
+export interface ApiConcurrencyResult {
+  gpu_count: number;
+  max_concurrency_without_pa: number;
+  max_concurrency_with_pa: number;
+  memory_breakdown: ApiMemoryBreakdown;
+  hardware_memory_gb: number;
+  available_memory_gb: number;
+}
+
+export interface ApiConcurrencyResponse {
+  success: boolean;
+  result: ApiConcurrencyResult | null;
+  error: string | null;
 }
 
 // Convert backend Hardware to frontend format (map id: number -> string)
@@ -286,6 +320,7 @@ class ApiClient {
     const backendInput = {
       hardware_id: Number(input.hardware_id),
       model_id: Number(input.model_id),
+      gpu_count: input.gpu_count,
       precision: precisionMap[input.precision] || "fp16",
       attention_precision: precisionMap[input.attention_precision] || "fp16",
       ffn_precision: precisionMap[input.ffn_precision] || "fp16",
@@ -297,6 +332,29 @@ class ApiClient {
     };
 
     return this.request<ApiCalculationResponse>("/calculate/mfu", {
+      method: "POST",
+      body: JSON.stringify(backendInput),
+    });
+  }
+
+  // Concurrency calculation endpoint
+  async calculateConcurrency(input: ApiConcurrencyInput): Promise<ApiConcurrencyResponse> {
+    const precisionMap: Record<string, ApiPrecision> = {
+      FP16: "fp16",
+      BF16: "bf16",
+      FP32: "fp32",
+    };
+
+    const backendInput = {
+      hardware_id: Number(input.hardware_id),
+      model_id: Number(input.model_id),
+      gpu_count: input.gpu_count,
+      context_length: input.context_length,
+      precision: precisionMap[input.precision] || "fp16",
+      framework_overhead_gb: input.framework_overhead_gb,
+    };
+
+    return this.request<ApiConcurrencyResponse>("/calculate/concurrency", {
       method: "POST",
       body: JSON.stringify(backendInput),
     });

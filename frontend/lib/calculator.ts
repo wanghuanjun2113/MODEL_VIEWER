@@ -178,8 +178,8 @@ export function calculateMFU(
   hardware: Hardware,
   model: Model
 ): CalculationResult {
-  // Use attention precision for peak FLOPs by default
-  const peakTflops = getPeakTflops(hardware, input.attention_precision);
+  // Use attention precision for peak FLOPs by default, multiply by GPU count
+  const peakTflops = getPeakTflops(hardware, input.attention_precision) * input.gpu_count;
 
   // Calculate FLOPs for prefill phase with separate precisions
   const prefillFlops = calculatePrefillFlops(
@@ -235,7 +235,7 @@ export function calculateMFU(
   const memoryReadPerToken = modelSizeGB + kvCacheSizeGB / input.generated_length;
   const requiredBandwidth = memoryReadPerToken / (input.tpot_ms / 1000);
   const memoryBandwidthUtilization =
-    (requiredBandwidth / (hardware.memory_bandwidth_tbps * 1000)) * 100;
+    (requiredBandwidth / (hardware.memory_bandwidth_tbps * input.gpu_count * 1000)) * 100;
 
   // Determine bottleneck type
   let bottleneckType: BottleneckType;
@@ -266,6 +266,7 @@ export function calculateMFU(
     memory_bandwidth_utilization: Math.min(memoryBandwidthUtilization, 100),
     theoretical_flops: totalFlops / 1e12,
     actual_flops: actualTflops,
+    peak_flops: peakTflops,
     bottleneck_type: bottleneckType,
     prefill_flops: prefillFlops / 1e12,
     decode_flops: totalDecodeFlops / 1e12,

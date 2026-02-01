@@ -21,6 +21,7 @@ export const translations = {
     selectHardware: "Select hardware",
     model: "Model",
     selectModel: "Select model",
+    gpuCount: "GPU Count",
     latencyInformation: "Latency Information",
     firstTokenLatency: "First Token Latency (ms)",
     tpot: "TPOT (ms)",
@@ -41,6 +42,7 @@ export const translations = {
     frameworkOverhead: "Framework Overhead",
     frameworkPreset: "Framework Preset",
     overheadGb: "Overhead (GB)",
+    activationReserve: "Activation Reserve",
     maxConcurrency: "Max Concurrency",
     withoutPagedAttention: "Without Paged Attention",
     withPagedAttention: "With Paged Attention",
@@ -189,6 +191,7 @@ export const translations = {
     selectHardware: "选择硬件",
     model: "模型",
     selectModel: "选择模型",
+    gpuCount: "卡数",
     latencyInformation: "延迟信息",
     firstTokenLatency: "首 Token 延迟 (ms)",
     tpot: "TPOT (ms)",
@@ -209,6 +212,7 @@ export const translations = {
     frameworkOverhead: "框架开销",
     frameworkPreset: "框架预设",
     overheadGb: "开销 (GB)",
+    activationReserve: "激活预留",
     maxConcurrency: "最大并发数",
     withoutPagedAttention: "不考虑 Paged Attention",
     withPagedAttention: "考虑 Paged Attention",
@@ -342,10 +346,12 @@ export const translations = {
   },
 } as const;
 
+type TranslationKey = keyof typeof translations.en;
+
 interface LanguageStore {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: <T extends string>(key: T, params?: Record<string, string | number>) => string;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }
 
 export const useLanguageStore = create<LanguageStore>()(
@@ -353,9 +359,10 @@ export const useLanguageStore = create<LanguageStore>()(
     (set, get) => ({
       language: "en",
       setLanguage: (language) => set({ language }),
-      t: <T extends string>(key: T, params?: Record<string, string | number>): string => {
+      t: (key: TranslationKey, params?: Record<string, string | number>): string => {
         const { language } = get();
-        let text = translations[language][key as keyof typeof translations[typeof language]] || key;
+        const translationSet = translations[language] || translations.en;
+        let text = (translationSet as Record<string, string>)[key] || key;
         if (params) {
           Object.entries(params).forEach(([k, v]) => {
             text = text.replace(`{${k}}`, String(v));

@@ -2,9 +2,9 @@
 
 import React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMFUStore } from "@/lib/store";
-import { calculateMaxConcurrency } from "@/lib/concurrency-calculator";
+import { calculateMaxConcurrency, calculateMaxConcurrencyWithPA } from "@/lib/concurrency-calculator";
 import { useLanguageStore } from "@/lib/i18n";
 import type { ConcurrencyInput, Precision } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Calculator, Cpu, Layers, Database, Settings } from "lucide-react";
+import { Calculator, Cpu, Layers, Database, Settings, Grid3X3, Zap } from "lucide-react";
 
 // Framework overhead presets
 const FRAMEWORK_PRESETS = [
@@ -39,13 +39,20 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
   const { hardware, models } = useMFUStore();
   const { t } = useLanguageStore();
   const [isCalculating, setIsCalculating] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [formData, setFormData] = useState<ConcurrencyInput>({
     hardware_id: "",
     model_id: "",
+    gpu_count: 1,
     context_length: 4096,
-    precision: "FP16",
+    attention_precision: "FP16",
     framework_overhead_gb: 2,
+    activation_reserve_gb: 5,
   });
 
   const [frameworkPreset, setFrameworkPreset] = useState<"vLLM" | "TensorRT-LLM" | "TGI" | "自定义">("vLLM");
@@ -87,7 +94,12 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       const result = calculateMaxConcurrency(formData, selectedHardware, selectedModel);
-      onCalculate(result);
+      // Calculate with Paged Attention
+      const resultWithPA = {
+        ...result,
+        max_concurrency_with_pa: calculateMaxConcurrencyWithPA(result),
+      };
+      onCalculate(resultWithPA);
 
       toast.success(t("calculationCompleted"));
     } catch (error) {
@@ -97,22 +109,50 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
     }
   };
 
+  const tt = (key: string, fallback: string) => mounted ? t(key as any) : fallback;
+
   return (
     <Card className="h-fit">
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Settings className="h-5 w-5 text-primary" />
-          {t("inputParameters")}
+          {tt("inputParameters", "Input Parameters")}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Hardware & Model Selection - Horizontal Layout */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Model, Hardware & GPU Selection - Horizontal Layout */}
+          <div className="grid grid-cols-3 gap-4">
+            {/* Model - First */}
+            <div className="space-y-2">
+              <Label htmlFor="model" className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                {tt("model", "Model")}
+              </Label>
+              <Select
+                value={formData.model_id}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, model_id: value })
+                }
+              >
+                <SelectTrigger id="model">
+                  <SelectValue placeholder={tt("selectModel", "Select model")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name} ({m.params_billions}B)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Hardware - Second */}
             <div className="space-y-2">
               <Label htmlFor="hardware" className="flex items-center gap-2">
                 <Cpu className="h-4 w-4 text-muted-foreground" />
-                {t("hardware")}
+                {tt("hardware", "Hardware")}
               </Label>
               <Select
                 value={formData.hardware_id}
@@ -121,7 +161,7 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
                 }
               >
                 <SelectTrigger id="hardware">
-                  <SelectValue placeholder={t("selectHardware")} />
+                  <SelectValue placeholder={tt("selectHardware", "Select hardware")} />
                 </SelectTrigger>
                 <SelectContent>
                   {hardware.map((h) => (
@@ -133,24 +173,25 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
               </Select>
             </div>
 
+            {/* GPU Count - Third */}
             <div className="space-y-2">
-              <Label htmlFor="model" className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                {t("model")}
+              <Label htmlFor="gpu_count" className="flex items-center gap-2">
+                <Grid3X3 className="h-4 w-4 text-muted-foreground" />
+                {tt("gpuCount", "GPU Count")}
               </Label>
               <Select
-                value={formData.model_id}
+                value={String(formData.gpu_count)}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, model_id: value })
+                  setFormData({ ...formData, gpu_count: Number(value) })
                 }
               >
-                <SelectTrigger id="model">
-                  <SelectValue placeholder={t("selectModel")} />
+                <SelectTrigger id="gpu_count">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {models.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name} ({m.params_billions}B)
+                  {([1, 2, 4, 8, 16, 32] as const).map((count) => (
+                    <SelectItem key={count} value={String(count)}>
+                      {count}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -164,7 +205,7 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
           <div className="space-y-4">
             <Label className="flex items-center gap-2 text-sm font-medium">
               <Database className="h-4 w-4 text-muted-foreground" />
-              {t("contextLength")}
+              {tt("contextLength", "Context Length (tokens)")}
             </Label>
             <Input
               id="context_length"
@@ -186,12 +227,12 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
           <div className="space-y-4">
             <Label className="flex items-center gap-2 text-sm font-medium">
               <Calculator className="h-4 w-4 text-muted-foreground" />
-              {t("frameworkOverhead")}
+              {tt("frameworkOverhead", "Framework Overhead")}
             </Label>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">
-                  {t("frameworkPreset")}
+                  {tt("frameworkPreset", "Framework Preset")}
                 </Label>
                 <Select
                   value={frameworkPreset}
@@ -211,7 +252,7 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">
-                  {t("overheadGb")}
+                  {tt("overheadGb", "Overhead (GB)")}
                 </Label>
                 <Input
                   type="number"
@@ -226,17 +267,40 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
 
           <Separator />
 
+          {/* Activation Reserve */}
+          <div className="space-y-4">
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <Zap className="h-4 w-4 text-muted-foreground" />
+              {tt("activationReserve", "Activation Reserve")}
+            </Label>
+            <Input
+              id="activation_reserve"
+              type="number"
+              min={0}
+              step={0.5}
+              value={formData.activation_reserve_gb}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  activation_reserve_gb: Number(e.target.value),
+                })
+              }
+            />
+          </div>
+
+          <Separator />
+
           {/* Precision Selection */}
           <div className="space-y-4">
-            <Label className="text-sm font-medium">{t("precision")}</Label>
+            <Label className="text-sm font-medium">{tt("attentionPrecision", "Attention Precision")}</Label>
             <RadioGroup
-              value={formData.precision}
+              value={formData.attention_precision}
               onValueChange={(value: Precision) =>
-                setFormData({ ...formData, precision: value })
+                setFormData({ ...formData, attention_precision: value })
               }
               className="flex space-x-4"
             >
-              {(["FP16", "BF16", "FP32"] as Precision[]).map((precision) => (
+              {(["FP16", "BF16", "INT8"] as Precision[]).map((precision) => (
                 <div key={precision} className="flex items-center space-x-2">
                   <RadioGroupItem value={precision} id={`precision-${precision}`} />
                   <Label htmlFor={`precision-${precision}`}>{precision}</Label>
@@ -254,12 +318,12 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
             {isCalculating ? (
               <>
                 <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                {t("calculating")}
+                {tt("calculating", "Calculating...")}
               </>
             ) : (
               <>
                 <Calculator className="mr-2 h-4 w-4" />
-                {t("calculateMaxConcurrency")}
+                {tt("calculateMaxConcurrency", "Calculate Max Concurrency")}
               </>
             )}
           </Button>

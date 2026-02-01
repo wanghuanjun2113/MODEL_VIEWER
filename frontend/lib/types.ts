@@ -36,6 +36,7 @@ export type Precision = "FP16" | "BF16" | "INT8";
 export interface CalculationInput {
   hardware_id: string;
   model_id: string;
+  gpu_count: number;  // Number of GPUs (1, 2, 4, 8, 16, 32)
   precision: Precision;  // General precision (backward compatibility)
   attention_precision: Precision;  // Attention layer precision
   ffn_precision: Precision;  // FFN layer precision
@@ -96,9 +97,11 @@ export interface ModelFormData {
 export interface ConcurrencyInput {
   hardware_id: string;
   model_id: string;
+  gpu_count: number;  // Number of GPUs (1, 2, 4, 8, 16, 32)
   context_length: number;
-  precision: Precision;
+  attention_precision: Precision;
   framework_overhead_gb: number;
+  activation_reserve_gb: number;  // Reserved memory for activations
 }
 
 export interface MemoryBreakdown {
@@ -110,9 +113,24 @@ export interface MemoryBreakdown {
 }
 
 export interface ConcurrencyResult {
+  gpu_count: number;
   max_concurrency_without_pa: number;
   max_concurrency_with_pa: number;
   memory_breakdown: MemoryBreakdown;
   hardware_memory_gb: number;
   available_memory_gb: number;
+  per_request_kv_cache_gb: number;  // KV cache per request (full context)
+  per_request_activation_gb: number;  // Activation memory per request
 }
+
+// GPU count options for multi-GPU support
+export const GPU_COUNT_OPTIONS = [
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 4, label: "4" },
+  { value: 8, label: "8" },
+  { value: 16, label: "16" },
+  { value: 32, label: "32" },
+] as const;
+
+export type GpuCount = typeof GPU_COUNT_OPTIONS[number]["value"];

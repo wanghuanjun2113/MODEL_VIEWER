@@ -260,6 +260,7 @@ export function ModelTable() {
               <TableHead className="text-right">{t("numLayers")}</TableHead>
               <TableHead className="text-right">{t("hiddenSize")}</TableHead>
               <TableHead className="text-right">{t("numAttentionHeads")}</TableHead>
+              <TableHead className="text-right">{t("numKeyValueHeads")}</TableHead>
               <TableHead className="w-[100px]">{t("actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -281,6 +282,9 @@ export function ModelTable() {
                 </TableCell>
                 <TableCell className="text-right font-mono">
                   {m.num_attention_heads}
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {m.num_key_value_heads}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Calculator, Settings, Cpu, Globe, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -17,21 +18,26 @@ import { Button } from "@/components/ui/button";
 export function Header() {
   const pathname = usePathname();
   const { language, setLanguage, t } = useLanguageStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const navItems = [
     {
       href: "/",
-      label: t("hardwareUtilization"),
+      label: mounted ? t("hardwareUtilization") : "Hardware Utilization",
       icon: Calculator,
     },
     {
       href: "/concurrency",
-      label: t("concurrency"),
+      label: mounted ? t("concurrency") : "Concurrency",
       icon: Users,
     },
     {
       href: "/management",
-      label: t("management"),
+      label: mounted ? t("management") : "Management",
       icon: Settings,
     },
   ];
@@ -44,7 +50,7 @@ export function Header() {
             <Cpu className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-lg font-semibold tracking-tight">
-            {t("mfuCalculator")}
+            {mounted ? t("mfuCalculator") : "MFU Calculator"}
           </span>
         </Link>
 
@@ -78,7 +84,7 @@ export function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Globe className="h-4 w-4" />
-                <span className="sr-only">{t("language")}</span>
+                <span className="sr-only">{mounted ? t("language") : "Language"}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
