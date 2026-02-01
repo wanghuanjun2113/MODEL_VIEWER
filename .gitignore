@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Database
+*.db
+*.sqlite3
+
+# Node.js
+node_modules/
+dist/
+build/
+.next/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archives
+*.zip
+*.tar.gz
+
+# Temporary files
+*.tmp
+temp/
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+*.egg-info/
+
+# Frontend
+frontend/.pnpm-store/
+frontend/.next/
+
+# Claude Code
+.claude/settings.local.json
