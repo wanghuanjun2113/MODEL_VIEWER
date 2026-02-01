@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Calculator, Settings, Cpu, Globe } from "lucide-react";
+import { Calculator, Settings, Cpu, Globe, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useLanguageStore } from "@/lib/i18n";
 import {
@@ -23,6 +23,11 @@ export function Header() {
       href: "/",
       label: t("hardwareUtilization"),
       icon: Calculator,
+    },
+    {
+      href: "/concurrency",
+      label: t("concurrency"),
+      icon: Users,
     },
     {
       href: "/management",

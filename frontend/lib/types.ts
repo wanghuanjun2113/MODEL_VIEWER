@@ -91,3 +91,28 @@ export interface ModelFormData {
   head_dim: number;
   max_position_embeddings: number;
 }
+
+// Concurrency calculator types
+export interface ConcurrencyInput {
+  hardware_id: string;
+  model_id: string;
+  context_length: number;
+  precision: Precision;
+  framework_overhead_gb: number;
+}
+
+export interface MemoryBreakdown {
+  weight_memory_gb: number;
+  framework_overhead_gb: number;
+  kv_cache_memory_gb: number;
+  activation_memory_gb: number;
+  total_memory_gb: number;
+}
+
+export interface ConcurrencyResult {
+  max_concurrency_without_pa: number;
+  max_concurrency_with_pa: number;
+  memory_breakdown: MemoryBreakdown;
+  hardware_memory_gb: number;
+  available_memory_gb: number;
+}

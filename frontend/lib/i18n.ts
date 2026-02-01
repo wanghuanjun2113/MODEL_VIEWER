@@ -11,6 +11,7 @@ export const translations = {
 
     // Navigation
     hardwareUtilization: "Hardware Utilization",
+    concurrency: "Concurrency",
     management: "Management",
     managementDesc: "Manage hardware configurations and model specifications",
 
@@ -32,6 +33,29 @@ export const translations = {
     ffnPrecision: "FFN Precision",
     calculateMfu: "Calculate MFU",
     calculating: "Calculating...",
+
+    // Concurrency calculator
+    concurrencyCalculator: "Concurrency Calculator",
+    concurrencyCalculatorDescription: "Calculate maximum concurrent requests based on memory constraints",
+    calculateMaxConcurrency: "Calculate Max Concurrency",
+    frameworkOverhead: "Framework Overhead",
+    frameworkPreset: "Framework Preset",
+    overheadGb: "Overhead (GB)",
+    maxConcurrency: "Max Concurrency",
+    withoutPagedAttention: "Without Paged Attention",
+    withPagedAttention: "With Paged Attention",
+    requests: "requests",
+    memoryBreakdown: "Memory Breakdown",
+    item: "Item",
+    singleRequest: "Single Request",
+    total: "Total",
+    weightMemory: "Weight Memory",
+    kvCacheMemory: "KV Cache Memory",
+    activationMemory: "Activation Memory",
+    hardwareMemory: "Hardware Memory",
+    usedMemory: "Used Memory",
+    availableMemory: "Available Memory",
+    runCalculationToSeeDetails: "Run a calculation to see memory details",
 
     // Messages
     pleaseSelectHardwareModel: "Please select hardware and model",
@@ -142,6 +166,11 @@ export const translations = {
     optContinuousBatching: "Consider using continuous batching to improve memory efficiency.",
     optBalanced: "System is balanced between compute and memory. Current configuration is efficient.",
     optScaleBatchSize: "Good utilization. Consider scaling up batch size for higher throughput.",
+
+    // Hardware info card
+    hardwareInfo: "Hardware Info",
+    hardwareInfoTip: "Total GPU memory available for model loading",
+    totalMemory: "Total Memory",
   },
   zh: {
     // Page title
@@ -150,6 +179,7 @@ export const translations = {
 
     // Navigation
     hardwareUtilization: "硬件利用率",
+    concurrency: "并发计算",
     management: "管理",
     managementDesc: "管理硬件配置和模型规格",
 
@@ -171,6 +201,29 @@ export const translations = {
     ffnPrecision: "FFN 精度",
     calculateMfu: "计算 MFU",
     calculating: "计算中...",
+
+    // Concurrency calculator
+    concurrencyCalculator: "并发计算器",
+    concurrencyCalculatorDescription: "基于显存限制计算最大并发请求数",
+    calculateMaxConcurrency: "计算最大并发",
+    frameworkOverhead: "框架开销",
+    frameworkPreset: "框架预设",
+    overheadGb: "开销 (GB)",
+    maxConcurrency: "最大并发数",
+    withoutPagedAttention: "不考虑 Paged Attention",
+    withPagedAttention: "考虑 Paged Attention",
+    requests: "个请求",
+    memoryBreakdown: "显存占用明细",
+    item: "项目",
+    singleRequest: "单并发",
+    total: "总占用",
+    weightMemory: "权重占用",
+    kvCacheMemory: "KVCache 占用",
+    activationMemory: "激活预留",
+    hardwareMemory: "硬件显存",
+    usedMemory: "已用显存",
+    availableMemory: "可用显存",
+    runCalculationToSeeDetails: "运行计算以查看显存详情",
 
     // Messages
     pleaseSelectHardwareModel: "请选择硬件和模型",
@@ -281,15 +334,18 @@ export const translations = {
     optContinuousBatching: "考虑使用连续批处理以提高内存效率。",
     optBalanced: "系统在计算和内存之间平衡。当前配置高效。",
     optScaleBatchSize: "利用率良好。考虑增大批大小以提高吞吐量。",
+
+    // Hardware info card
+    hardwareInfo: "硬件信息",
+    hardwareInfoTip: "可用于模型加载的 GPU 显存总量",
+    totalMemory: "总显存",
   },
 } as const;
-
-type TranslationKey = keyof typeof translations.en | keyof typeof translations.zh;
 
 interface LanguageStore {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  t: <T extends string>(key: T, params?: Record<string, string | number>) => string;
 }
 
 export const useLanguageStore = create<LanguageStore>()(
@@ -297,7 +353,7 @@ export const useLanguageStore = create<LanguageStore>()(
     (set, get) => ({
       language: "en",
       setLanguage: (language) => set({ language }),
-      t: (key, params) => {
+      t: <T extends string>(key: T, params?: Record<string, string | number>): string => {
         const { language } = get();
         let text = translations[language][key as keyof typeof translations[typeof language]] || key;
         if (params) {
@@ -305,7 +361,7 @@ export const useLanguageStore = create<LanguageStore>()(
             text = text.replace(`{${k}}`, String(v));
           });
         }
-        return text as string;
+        return text;
       },
     }),
     {
