@@ -5,8 +5,10 @@ import { Header } from "@/components/header";
 import { CalculatorForm } from "@/components/calculator/calculator-form";
 import { ResultsPanel } from "@/components/calculator/results-panel";
 import { ComparisonTable } from "@/components/calculator/comparison-table";
+import { useLanguageStore } from "@/lib/i18n";
 
 export default function CalculatorPage() {
+  const { t } = useLanguageStore();
   const [key, setKey] = useState(0);
 
   const handleCalculate = () => {
@@ -19,10 +21,10 @@ export default function CalculatorPage() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-balance">
-            MFU Calculator
+            {t("mfuCalculator")}
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Calculate Model FLOPs Utilization and memory bandwidth usage for LLM inference
+            {t("calculateMfuDescription")}
           </p>
         </div>
 

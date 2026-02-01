@@ -4,7 +4,7 @@ export interface Hardware {
   name: string;
   fp16_peak_tflops: number;
   bf16_peak_tflops: number;
-  fp32_peak_tflops: number;
+  int8_peak_tops: number;
   memory_size_gb: number;
   memory_bandwidth_tbps: number;
   created_at: string;
@@ -30,13 +30,15 @@ export interface Model {
 }
 
 // Precision type
-export type Precision = "FP16" | "BF16" | "FP32";
+export type Precision = "FP16" | "BF16" | "INT8";
 
 // Calculation input
 export interface CalculationInput {
   hardware_id: string;
   model_id: string;
-  precision: Precision;
+  precision: Precision;  // General precision (backward compatibility)
+  attention_precision: Precision;  // Attention layer precision
+  ffn_precision: Precision;  // FFN layer precision
   first_token_latency_ms: number;
   tpot_ms: number;
   context_length: number;
@@ -70,7 +72,7 @@ export interface HardwareFormData {
   name: string;
   fp16_peak_tflops: number;
   bf16_peak_tflops: number;
-  fp32_peak_tflops: number;
+  int8_peak_tops: number;
   memory_size_gb: number;
   memory_bandwidth_tbps: number;
 }

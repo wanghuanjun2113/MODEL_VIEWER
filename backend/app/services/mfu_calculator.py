@@ -46,7 +46,9 @@ class ModelInfo:
 class CalculationInput:
     """计算输入参数"""
 
-    precision: str  # fp16, bf16, fp32
+    precision: str  # fp16, bf16, fp32 (backward compatibility)
+    attention_precision: str  # fp16, bf16, fp32
+    ffn_precision: str  # fp16, bf16, fp32
     first_token_latency_ms: float
     tpot_ms: float
     context_length: int
@@ -96,6 +98,15 @@ class MFUCalculator:
     def __init__(self):
         pass
 
+    def _get_precision_scale(self, precision: str) -> float:
+        """获取精度缩放因子（相对于 FP32 的吞吐量）
+
+        INT8 通常有 2 倍于 FP16 的吞吐量
+        """
+        if precision == "int8":
+            return 2.0  # INT8 has 2x throughput
+        return 1.0  # FP16/BF16/FP32 have same relative throughput
+
     def calculate(
         self,
         hardware: HardwareInfo,
@@ -112,13 +123,22 @@ class MFUCalculator:
         Returns:
             计算结果
         """
-        # 1. 获取峰值算力
-        peak_flops = self._get_peak_flops(hardware, input_data.precision)
+        # 1. 获取峰值算力（使用 attention precision）
+        peak_flops = self._get_peak_flops(hardware, input_data.attention_precision)
 
-        # 2. 计算各阶段 FLOPs
-        prefill_flops = self._calculate_prefill_flops(model, input_data.context_length)
+        # 2. 计算各阶段 FLOPs（使用分离的精度）
+        prefill_flops = self._calculate_prefill_flops(
+            model,
+            input_data.context_length,
+            input_data.attention_precision,
+            input_data.ffn_precision
+        )
         decode_flops = self._calculate_decode_flops(
-            model, input_data.generated_length, input_data.batch_size
+            model,
+            input_data.generated_length,
+            input_data.batch_size,
+            input_data.attention_precision,
+            input_data.ffn_precision
         )
 
         # 3. 总 FLOPs
@@ -195,7 +215,13 @@ class MFUCalculator:
         }
         return precision_map.get(precision, hardware.fp16_peak_tflops)
 
-    def _calculate_prefill_flops(self, model: ModelInfo, context_length: int) -> float:
+    def _calculate_prefill_flops(
+        self,
+        model: ModelInfo,
+        context_length: int,
+        attention_precision: str,
+        ffn_precision: str
+    ) -> float:
         """计算 Prefill 阶段的 FLOPs
 
         Prefill 阶段对整个输入序列进行计算，包括：
@@ -208,21 +234,25 @@ class MFUCalculator:
         FLOPs = 2 * (2 * L * d^2 + 3 * L * d * n) * context_length
 
         其中 n 是词汇表大小
+
+        支持分离的 Attention 和 FFN 精度
         """
         L = model.num_layers
         d = model.hidden_size
         n = model.vocab_size
 
-        # 使用更精确的公式
+        # 获取精度缩放因子
+        attention_scale = self._get_precision_scale(attention_precision)
+        ffn_scale = self._get_precision_scale(ffn_precision)
+
         # Attention: 4 * L * context_length * d^2 (Q, K, V, O projections)
-        attention_flops = 4 * L * context_length * d * d
+        attention_flops = 4 * L * context_length * d * d * attention_scale
 
         # MLP: 3 * L * context_length * d * intermediate_size
-        # 注意：intermediate_size 通常是 2-4 倍的 hidden_size
-        mlp_flops = 3 * L * context_length * d * model.intermediate_size
+        mlp_flops = 3 * L * context_length * d * model.intermediate_size * ffn_scale
 
-        # Output layer: L * context_length * d * vocab_size
-        output_flops = L * context_length * d * n
+        # Output layer: L * context_length * d * vocab_size (use attention precision)
+        output_flops = L * context_length * d * n * attention_scale
 
         total_flops = attention_flops + mlp_flops + output_flops
 
@@ -233,7 +263,9 @@ class MFUCalculator:
         self,
         model: ModelInfo,
         generated_length: int,
-        batch_size: int
+        batch_size: int,
+        attention_precision: str,
+        ffn_precision: str
     ) -> float:
         """计算 Decode 阶段的 FLOPs
 
@@ -242,19 +274,25 @@ class MFUCalculator:
         - 但 KV cache 需要更新
 
         FLOPs = 2 * L * d * (2 * d + n) * generated_length * batch_size
+
+        支持分离的 Attention 和 FFN 精度
         """
         L = model.num_layers
         d = model.hidden_size
         n = model.vocab_size
 
+        # 获取精度缩放因子
+        attention_scale = self._get_precision_scale(attention_precision)
+        ffn_scale = self._get_precision_scale(ffn_precision)
+
         # Attention per token: 4 * L * d^2
-        attention_flops = 4 * L * d * d
+        attention_flops = 4 * L * d * d * attention_scale
 
         # MLP per token: 3 * L * d * intermediate_size
-        mlp_flops = 3 * L * d * model.intermediate_size
+        mlp_flops = 3 * L * d * model.intermediate_size * ffn_scale
 
-        # Output per token: L * d * n
-        output_flops = L * d * n
+        # Output per token: L * d * n (use attention precision)
+        output_flops = L * d * n * attention_scale
 
         # 单个 token 的 FLOPs
         per_token_flops = attention_flops + mlp_flops + output_flops
@@ -395,8 +433,15 @@ def calculate_mfu(
         max_position_embeddings=model.get("max_position_embeddings", 0),
     )
 
+    # Get precision values, with fallback to general precision
+    precision = input_data.get("precision", "fp16")
+    attention_precision = input_data.get("attention_precision", precision)
+    ffn_precision = input_data.get("ffn_precision", precision)
+
     calc_input = CalculationInput(
-        precision=input_data.get("precision", "fp16"),
+        precision=precision,
+        attention_precision=attention_precision,
+        ffn_precision=ffn_precision,
         first_token_latency_ms=input_data.get("first_token_latency_ms", 0),
         tpot_ms=input_data.get("tpot_ms", 0),
         context_length=input_data.get("context_length", 0),

@@ -46,7 +46,9 @@ export type ApiPrecision = "fp16" | "bf16" | "fp32";
 export interface ApiCalculationInput {
   hardware_id: number;
   model_id: number;
-  precision: ApiPrecision;
+  precision: ApiPrecision;  // General precision (backward compatibility)
+  attention_precision: ApiPrecision;  // Attention layer precision
+  ffn_precision: ApiPrecision;  // FFN layer precision
   first_token_latency_ms: number;
   tpot_ms: number;
   context_length: number;
@@ -285,6 +287,8 @@ class ApiClient {
       hardware_id: Number(input.hardware_id),
       model_id: Number(input.model_id),
       precision: precisionMap[input.precision] || "fp16",
+      attention_precision: precisionMap[input.attention_precision] || "fp16",
+      ffn_precision: precisionMap[input.ffn_precision] || "fp16",
       first_token_latency_ms: input.first_token_latency_ms,
       tpot_ms: input.tpot_ms,
       context_length: input.context_length,

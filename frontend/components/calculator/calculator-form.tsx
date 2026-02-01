@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useMFUStore } from "@/lib/store";
 import { calculateMFU } from "@/lib/calculator";
 import { apiClient } from "@/lib/api";
+import { useLanguageStore } from "@/lib/i18n";
 import type { CalculationInput, Precision } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,12 +30,15 @@ interface CalculatorFormProps {
 
 export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
   const { hardware, models, addResult, useApi } = useMFUStore();
+  const { t } = useLanguageStore();
   const [isCalculating, setIsCalculating] = useState(false);
 
   const [formData, setFormData] = useState<CalculationInput>({
     hardware_id: "",
     model_id: "",
     precision: "FP16",
+    attention_precision: "FP16",
+    ffn_precision: "FP16",
     first_token_latency_ms: 100,
     tpot_ms: 20,
     context_length: 2048,
@@ -46,7 +50,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
     e.preventDefault();
 
     if (!formData.hardware_id || !formData.model_id) {
-      toast.error("Please select hardware and model");
+      toast.error(t("pleaseSelectHardwareModel"));
       return;
     }
 
@@ -54,7 +58,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
     const selectedModel = models.find((m) => m.id === formData.model_id);
 
     if (!selectedHardware || !selectedModel) {
-      toast.error("Invalid hardware or model selection");
+      toast.error(t("invalidSelection"));
       return;
     }
 
@@ -67,6 +71,8 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
           hardware_id: formData.hardware_id,
           model_id: formData.model_id,
           precision: formData.precision,
+          attention_precision: formData.attention_precision,
+          ffn_precision: formData.ffn_precision,
           first_token_latency_ms: formData.first_token_latency_ms,
           tpot_ms: formData.tpot_ms,
           context_length: formData.context_length,
@@ -75,7 +81,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
         });
 
         if (!response.success || !response.result) {
-          throw new Error(response.error || "Calculation failed");
+          throw new Error(response.error || t("calculationFailed"));
         }
 
         // Convert API response to frontend format
@@ -104,10 +110,10 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
         addResult(result);
       }
 
-      toast.success("Calculation completed");
+      toast.success(t("calculationCompleted"));
       onCalculate();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Calculation failed");
+      toast.error(error instanceof Error ? error.message : t("calculationFailed"));
     } finally {
       setIsCalculating(false);
     }
@@ -118,17 +124,17 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Calculator className="h-5 w-5 text-primary" />
-          Input Parameters
+          {t("inputParameters")}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Hardware & Model Selection */}
-          <div className="space-y-4">
+          {/* Hardware & Model Selection - Horizontal Layout */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="hardware" className="flex items-center gap-2">
                 <Cpu className="h-4 w-4 text-muted-foreground" />
-                Hardware
+                {t("hardware")}
               </Label>
               <Select
                 value={formData.hardware_id}
@@ -137,7 +143,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                 }
               >
                 <SelectTrigger id="hardware">
-                  <SelectValue placeholder="Select hardware" />
+                  <SelectValue placeholder={t("selectHardware")} />
                 </SelectTrigger>
                 <SelectContent>
                   {hardware.map((h) => (
@@ -152,7 +158,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
             <div className="space-y-2">
               <Label htmlFor="model" className="flex items-center gap-2">
                 <Layers className="h-4 w-4 text-muted-foreground" />
-                Model
+                {t("model")}
               </Label>
               <Select
                 value={formData.model_id}
@@ -161,7 +167,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                 }
               >
                 <SelectTrigger id="model">
-                  <SelectValue placeholder="Select model" />
+                  <SelectValue placeholder={t("selectModel")} />
                 </SelectTrigger>
                 <SelectContent>
                   {models.map((m) => (
@@ -180,12 +186,12 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
           <div className="space-y-4">
             <Label className="flex items-center gap-2 text-sm font-medium">
               <Timer className="h-4 w-4 text-muted-foreground" />
-              Latency Information
+              {t("latencyInformation")}
             </Label>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="first_token" className="text-xs text-muted-foreground">
-                  First Token Latency (ms)
+                  {t("firstTokenLatency")}
                 </Label>
                 <Input
                   id="first_token"
@@ -202,7 +208,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tpot" className="text-xs text-muted-foreground">
-                  TPOT (ms)
+                  {t("tpot")}
                 </Label>
                 <Input
                   id="tpot"
@@ -226,12 +232,12 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
           <div className="space-y-4">
             <Label className="flex items-center gap-2 text-sm font-medium">
               <Hash className="h-4 w-4 text-muted-foreground" />
-              Context Information
+              {t("contextInformation")}
             </Label>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="context_length" className="text-xs text-muted-foreground">
-                  Context Length (tokens)
+                  {t("contextLength")}
                 </Label>
                 <Input
                   id="context_length"
@@ -248,7 +254,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="generated_length" className="text-xs text-muted-foreground">
-                  Generated Length (tokens)
+                  {t("generatedLength")}
                 </Label>
                 <Input
                   id="generated_length"
@@ -267,7 +273,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
 
             <div className="space-y-2">
               <Label htmlFor="batch_size" className="text-xs text-muted-foreground">
-                Batch Size / Concurrency
+                {t("batchSize")}
               </Label>
               <Input
                 id="batch_size"
@@ -288,23 +294,53 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
 
           {/* Precision Selection */}
           <div className="space-y-4">
-            <Label className="text-sm font-medium">Precision</Label>
-            <RadioGroup
-              value={formData.precision}
-              onValueChange={(value: Precision) =>
-                setFormData({ ...formData, precision: value })
-              }
-              className="flex gap-4"
-            >
-              {(["FP16", "BF16", "FP32"] as Precision[]).map((precision) => (
-                <div key={precision} className="flex items-center space-x-2">
-                  <RadioGroupItem value={precision} id={precision} />
-                  <Label htmlFor={precision} className="font-mono text-sm cursor-pointer">
-                    {precision}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
+            <Label className="text-sm font-medium">{t("precision")}</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  {t("attentionPrecision")}
+                </Label>
+                <Select
+                  value={formData.attention_precision}
+                  onValueChange={(value: Precision) =>
+                    setFormData({ ...formData, attention_precision: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(["FP16", "BF16", "INT8"] as Precision[]).map((precision) => (
+                      <SelectItem key={precision} value={precision}>
+                        {precision}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  {t("ffnPrecision")}
+                </Label>
+                <Select
+                  value={formData.ffn_precision}
+                  onValueChange={(value: Precision) =>
+                    setFormData({ ...formData, ffn_precision: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(["FP16", "BF16", "INT8"] as Precision[]).map((precision) => (
+                      <SelectItem key={precision} value={precision}>
+                        {precision}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
 
           <Button
@@ -316,12 +352,12 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
             {isCalculating ? (
               <>
                 <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Calculating...
+                {t("calculating")}
               </>
             ) : (
               <>
                 <Calculator className="mr-2 h-4 w-4" />
-                Calculate MFU
+                {t("calculateMfu")}
               </>
             )}
           </Button>

@@ -14,8 +14,8 @@ function getPeakTflops(hardware: Hardware, precision: Precision): number {
       return hardware.fp16_peak_tflops;
     case "BF16":
       return hardware.bf16_peak_tflops;
-    case "FP32":
-      return hardware.fp32_peak_tflops;
+    case "INT8":
+      return hardware.int8_peak_tops;
   }
 }
 
@@ -25,16 +25,29 @@ function getBytesPerElement(precision: Precision): number {
     case "FP16":
     case "BF16":
       return 2;
-    case "FP32":
-      return 4;
+    case "INT8":
+      return 1;
   }
 }
 
-// Calculate prefill phase FLOPs
+// Get precision scaling factor (relative to FP32)
+function getPrecisionScale(precision: Precision): number {
+  switch (precision) {
+    case "FP16":
+    case "BF16":
+      return 1;  // FP16/BF16 is 2 bytes, same as FP32 ops ratio
+    case "INT8":
+      return 2;  // INT8 has 2x throughput of FP16 on most tensor cores
+  }
+}
+
+// Calculate prefill phase FLOPs with separate attention and FFN precision
 function calculatePrefillFlops(
   model: Model,
   contextLength: number,
-  batchSize: number
+  batchSize: number,
+  attentionPrecision: Precision,
+  ffnPrecision: Precision
 ): number {
   const L = model.num_layers;
   const d = model.hidden_size;
@@ -45,28 +58,34 @@ function calculatePrefillFlops(
   const kvHeads = model.num_key_value_heads;
 
   // Attention: Q, K, V projections + attention scores + output projection
-  const qkvProj = 2 * d * (d + 2 * (kvHeads * headDim)) * contextLength;
-  const attnScores = 2 * h * contextLength * contextLength * headDim;
-  const attnOutput = 2 * d * d * contextLength;
+  // Apply precision scaling for attention
+  const attentionScale = getPrecisionScale(attentionPrecision);
+  const qkvProj = 2 * d * (d + 2 * (kvHeads * headDim)) * contextLength * attentionScale;
+  const attnScores = 2 * h * contextLength * contextLength * headDim * attentionScale;
+  const attnOutput = 2 * d * d * contextLength * attentionScale;
   const attnTotal = qkvProj + attnScores + attnOutput;
 
   // FFN: up projection + down projection (with SwiGLU)
-  const ffnFlops = 2 * 3 * d * intermediateSize * contextLength;
+  // Apply precision scaling for FFN
+  const ffnScale = getPrecisionScale(ffnPrecision);
+  const ffnFlops = 2 * 3 * d * intermediateSize * contextLength * ffnScale;
 
   // Total per layer
   const perLayerFlops = attnTotal + ffnFlops;
 
-  // Embedding and LM head
-  const embeddingFlops = 2 * d * n * contextLength;
+  // Embedding and LM head (use attention precision as default)
+  const embeddingFlops = 2 * d * n * contextLength * attentionScale;
 
   return (L * perLayerFlops + embeddingFlops) * batchSize;
 }
 
-// Calculate decode phase FLOPs (per token)
+// Calculate decode phase FLOPs (per token) with separate precision
 function calculateDecodeFlopsPerToken(
   model: Model,
   contextLength: number,
-  batchSize: number
+  batchSize: number,
+  attentionPrecision: Precision,
+  ffnPrecision: Precision
 ): number {
   const L = model.num_layers;
   const d = model.hidden_size;
@@ -77,19 +96,21 @@ function calculateDecodeFlopsPerToken(
   const kvHeads = model.num_key_value_heads;
 
   // Attention for single token
-  const qkvProj = 2 * d * (d + 2 * (kvHeads * headDim));
-  const attnScores = 2 * h * contextLength * headDim;
-  const attnOutput = 2 * d * d;
+  const attentionScale = getPrecisionScale(attentionPrecision);
+  const qkvProj = 2 * d * (d + 2 * (kvHeads * headDim)) * attentionScale;
+  const attnScores = 2 * h * contextLength * headDim * attentionScale;
+  const attnOutput = 2 * d * d * attentionScale;
   const attnTotal = qkvProj + attnScores + attnOutput;
 
-  // FFN
-  const ffnFlops = 2 * 3 * d * intermediateSize;
+  // FFN with precision scaling
+  const ffnScale = getPrecisionScale(ffnPrecision);
+  const ffnFlops = 2 * 3 * d * intermediateSize * ffnScale;
 
   // Total per layer
   const perLayerFlops = attnTotal + ffnFlops;
 
   // LM head
-  const lmHeadFlops = 2 * d * n;
+  const lmHeadFlops = 2 * d * n * attentionScale;
 
   return (L * perLayerFlops + lmHeadFlops) * batchSize;
 }
@@ -128,23 +149,23 @@ function generateOptimizationSuggestions(
   const suggestions: string[] = [];
 
   if (bottleneckType === "compute") {
-    suggestions.push("System is compute-bound. Consider using higher compute hardware.");
+    suggestions.push("optHigherComputeHardware");
     if (mfu < 30) {
-      suggestions.push("Low MFU detected. Enable Tensor Core optimizations if available.");
-      suggestions.push("Consider using quantization (INT8/INT4) to reduce compute requirements.");
+      suggestions.push("optTensorCoreOpt");
+      suggestions.push("optUseQuantization");
     }
-    suggestions.push("Consider using Flash Attention for better compute efficiency.");
+    suggestions.push("optFlashAttention");
   } else if (bottleneckType === "memory") {
-    suggestions.push("System is memory-bandwidth-bound. Consider using hardware with higher memory bandwidth.");
+    suggestions.push("optHigherMemoryBandwidth");
     if (memoryBandwidthUtilization > 80) {
-      suggestions.push("Memory bandwidth is saturated. Reduce batch size or use model compression.");
-      suggestions.push("Consider using KV cache quantization to reduce memory traffic.");
+      suggestions.push("optReduceBatchSize");
+      suggestions.push("optKVCacheQuant");
     }
-    suggestions.push("Consider using continuous batching to improve memory efficiency.");
+    suggestions.push("optContinuousBatching");
   } else {
-    suggestions.push("System is balanced between compute and memory. Current configuration is efficient.");
+    suggestions.push("optBalanced");
     if (mfu > 50 && memoryBandwidthUtilization > 50) {
-      suggestions.push("Good utilization. Consider scaling up batch size for higher throughput.");
+      suggestions.push("optScaleBatchSize");
     }
   }
 
@@ -157,13 +178,16 @@ export function calculateMFU(
   hardware: Hardware,
   model: Model
 ): CalculationResult {
-  const peakTflops = getPeakTflops(hardware, input.precision);
+  // Use attention precision for peak FLOPs by default
+  const peakTflops = getPeakTflops(hardware, input.attention_precision);
 
-  // Calculate FLOPs for prefill phase
+  // Calculate FLOPs for prefill phase with separate precisions
   const prefillFlops = calculatePrefillFlops(
     model,
     input.context_length,
-    input.batch_size
+    input.batch_size,
+    input.attention_precision,
+    input.ffn_precision
   );
 
   // Calculate FLOPs for decode phase (all generated tokens)
@@ -172,7 +196,9 @@ export function calculateMFU(
   const decodeFlopsPerToken = calculateDecodeFlopsPerToken(
     model,
     avgContextLength,
-    input.batch_size
+    input.batch_size,
+    input.attention_precision,
+    input.ffn_precision
   );
   const totalDecodeFlops = decodeFlopsPerToken * input.generated_length;
 
@@ -191,12 +217,18 @@ export function calculateMFU(
   const mfu = (actualTflops / peakTflops) * 100;
 
   // Calculate memory bandwidth utilization
-  const modelSizeGB = calculateModelSize(model, input.precision);
+  // Use the larger precision (more bytes) for conservative estimate
+  const modelPrecision = input.attention_precision === "INT8" || input.ffn_precision === "INT8"
+    ? "INT8"
+    : input.attention_precision === "BF16" || input.ffn_precision === "BF16"
+      ? "BF16"
+      : "FP16";
+  const modelSizeGB = calculateModelSize(model, modelPrecision as Precision);
   const kvCacheSizeGB = calculateKVCacheSize(
     model,
     input.context_length + input.generated_length,
     input.batch_size,
-    input.precision
+    input.attention_precision as Precision
   );
 
   // Memory read per token during decode (simplified: model weights + KV cache)

@@ -3,24 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Calculator, Settings, Cpu } from "lucide-react";
+import { Calculator, Settings, Cpu, Globe } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-
-const navItems = [
-  {
-    href: "/",
-    label: "Calculator",
-    icon: Calculator,
-  },
-  {
-    href: "/management",
-    label: "Management",
-    icon: Settings,
-  },
-];
+import { useLanguageStore } from "@/lib/i18n";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 export function Header() {
   const pathname = usePathname();
+  const { language, setLanguage, t } = useLanguageStore();
+
+  const navItems = [
+    {
+      href: "/",
+      label: t("hardwareUtilization"),
+      icon: Calculator,
+    },
+    {
+      href: "/management",
+      label: t("management"),
+      icon: Settings,
+    },
+  ];
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -30,7 +39,7 @@ export function Header() {
             <Cpu className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-lg font-semibold tracking-tight">
-            MFU Calculator
+            {t("mfuCalculator")}
           </span>
         </Link>
 
@@ -59,7 +68,29 @@ export function Header() {
           })}
         </nav>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Globe className="h-4 w-4" />
+                <span className="sr-only">{t("language")}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setLanguage("en")}
+                className={cn(language === "en" && "bg-secondary")}
+              >
+                English
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setLanguage("zh")}
+                className={cn(language === "zh" && "bg-secondary")}
+              >
+                中文
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ThemeToggle />
         </div>
       </div>

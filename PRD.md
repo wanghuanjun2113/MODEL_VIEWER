@@ -184,23 +184,85 @@ MFU = Actual FLOPs / Peak FLOPs × 100%
 
 ---
 
+### 3.7 并发计算器
+
+#### 3.7.1 功能描述
+计算在给定硬件和模型配置下可支持的最大并发请求数，基于显存限制进行估算。
+
+#### 3.7.2 Paged Attention 支持
+- **不考虑 Paged Attention**：按完整 KVCache 计算
+- **考虑 Paged Attention**：KVCache 显存节省 2.3 倍（即并发数提升 2.3 倍）
+
+#### 3.7.3 输入参数
+| 参数 | 类型 | 说明 | 默认值 |
+|------|------|------|--------|
+| hardware_id | UUID | 选择的硬件 | - |
+| model_id | UUID | 选择的模型 | - |
+| context_length | Int | 上下文长度 | 4096 |
+| precision | Enum | 计算精度 (FP16/BF16/FP32) | FP16 |
+| framework_overhead_gb | Float | 推理框架显存占用（可配置） | 2 (vLLM) |
+
+#### 3.7.4 输出结果
+
+**最大并发数：**
+| 场景 | 说明 |
+|------|------|
+| 不考虑 Paged Attention | 按完整 KVCache 计算的最大并发数 |
+| 考虑 Paged Attention (×2.3) | 应用 Paged Attention 显存优化后的并发数 |
+
+**显存占用明细表格：**
+| 项目 | 单并发显存 | 总显存占用 | 计算公式 |
+|------|-----------|-----------|----------|
+| 权重占用 | XX GB | XX GB | params_billions × 1e9 × precision_bytes |
+| 框架占用 | XX GB | XX GB | 用户配置的框架显存 |
+| KVCache 占用 | XX GB | XX GB | 2 × L × H × d × C × precision_bytes |
+| 激活预留 | XX GB | XX GB | 2 × L × C × hidden_size × precision_bytes |
+| 合计 | XX GB | XX GB | 各部分之和 |
+
+**可用显存：** 硬件显存 - 总显存占用
+
+#### 3.7.5 计算公式
+
+**KVCache 显存（单并发）：**
+```
+KVCache = 2 × num_layers × num_attention_heads × head_dim × context_length × precision_bytes
+```
+
+**激活显存（单并发）：**
+```
+Activation = 2 × num_layers × context_length × hidden_size × precision_bytes
+```
+
+**最大并发数计算：**
+```
+available_memory = hardware.memory_size_gb - framework_overhead_gb
+
+memory_per_request = model_weight_size + kv_cache + activation
+
+max_concurrency_without_pa = floor(available_memory / memory_per_request)
+max_concurrency_with_pa = floor(available_memory / (memory_per_request / 2.3))
+```
+
+---
+
 ## 4. 页面设计
 
 ### 4.1 页面结构
 
 ```
-┌────────────────────────────────────────────┐
-│ [MFU计算器]    [计算]    [管理]            │  ← 顶部导航
-├────────────────────────────────────────────┤
-│                                            │
-│              首页（计算页面）               │
-│                                            │
-└────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│ [MFU计算器]    [计算]    [并发计算]    [管理]        │  ← 顶部导航
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│              首页（计算页面 / 并发计算页面）          │
+│                                                      │
+└──────────────────────────────────────────────────────┘
 ```
 
 ### 4.2 导航设计
 - **MFU计算器**：Logo/品牌标识
-- **计算**：跳转到计算页面（首页）
+- **计算**：跳转到 MFU 计算页面（首页）
+- **并发计算**：跳转到并发计算页面
 - **管理**：跳转到硬件和模型管理页面
 
 ### 4.3 计算页面布局

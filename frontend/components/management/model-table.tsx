@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMFUStore } from "@/lib/store";
+import { useLanguageStore } from "@/lib/i18n";
 import type { Model, ModelFormData } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ const emptyFormData: ModelFormData = {
 
 export function ModelTable() {
   const { models, addModel, updateModel, deleteModel } = useMFUStore();
+  const { t } = useLanguageStore();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<Model | null>(null);
   const [formData, setFormData] = useState<ModelFormData>(emptyFormData);
@@ -64,7 +66,7 @@ export function ModelTable() {
 
   const handleAdd = () => {
     if (!formData.name) {
-      toast.error("Name is required");
+      toast.error(t("nameRequired"));
       return;
     }
     addModel(formData);
@@ -72,28 +74,28 @@ export function ModelTable() {
     setPreviewData(null);
     setHfId("");
     setIsAddOpen(false);
-    toast.success("Model added");
+    toast.success(t("modelAdded"));
   };
 
   const handleEdit = () => {
     if (!editingModel || !formData.name) {
-      toast.error("Name is required");
+      toast.error(t("nameRequired"));
       return;
     }
     updateModel(editingModel.id, formData);
     setEditingModel(null);
     setFormData(emptyFormData);
-    toast.success("Model updated");
+    toast.success(t("modelUpdated"));
   };
 
   const handleDelete = (id: string) => {
     deleteModel(id);
-    toast.success("Model deleted");
+    toast.success(t("modelDeleted"));
   };
 
   const handleFetchFromHF = async () => {
     if (!hfId.trim()) {
-      toast.error("Please enter a Hugging Face model ID");
+      toast.error(t("hfIdRequired"));
       return;
     }
 
@@ -103,13 +105,13 @@ export function ModelTable() {
       const response = await fetch(
         `https://huggingface.co/${hfId}/raw/main/config.json`
       );
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch model config");
       }
 
       const config = await response.json();
-      
+
       // Extract model parameters from config
       const fetchedData: ModelFormData = {
         name: hfId.split("/").pop() || hfId,
@@ -130,7 +132,7 @@ export function ModelTable() {
       const L = fetchedData.num_layers;
       const V = fetchedData.vocab_size;
       const ffnSize = fetchedData.intermediate_size;
-      
+
       // Rough parameter estimate: embeddings + attention + FFN for each layer
       const embedParams = d * V;
       const attnParams = L * (4 * d * d);
@@ -140,9 +142,9 @@ export function ModelTable() {
 
       setPreviewData(fetchedData);
       setFormData(fetchedData);
-      toast.success("Model config fetched successfully");
+      toast.success(t("fetchConfigSuccess"));
     } catch {
-      toast.error("Failed to fetch model config from Hugging Face");
+      toast.error(t("fetchConfigFailed"));
     } finally {
       setIsFetching(false);
     }
@@ -179,23 +181,23 @@ export function ModelTable() {
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
-              Add Model
+              {t("addModel")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add Model</DialogTitle>
+              <DialogTitle>{t("addModel")}</DialogTitle>
               <DialogDescription>
-                Add a new model configuration. You can fetch from Hugging Face or enter manually.
+                {t("modelConfigDesc")}
               </DialogDescription>
             </DialogHeader>
-            
+
             <Tabs defaultValue="huggingface" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="huggingface">From Hugging Face</TabsTrigger>
-                <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+                <TabsTrigger value="huggingface">{t("importFromHf")}</TabsTrigger>
+                <TabsTrigger value="manual">{t("manualEntry")}</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="huggingface" className="space-y-4">
                 <div className="flex gap-2">
                   <Input
@@ -209,15 +211,15 @@ export function ModelTable() {
                     ) : (
                       <Search className="mr-2 h-4 w-4" />
                     )}
-                    Fetch
+                    {t("preview")}
                   </Button>
                 </div>
 
                 {previewData && (
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Preview</CardTitle>
-                      <CardDescription>Review and edit before saving</CardDescription>
+                      <CardTitle className="text-base">{t("preview")}</CardTitle>
+                      <CardDescription>{t("reviewBeforeSaving")}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ModelForm formData={formData} setFormData={setFormData} />
@@ -225,7 +227,7 @@ export function ModelTable() {
                   </Card>
                 )}
               </TabsContent>
-              
+
               <TabsContent value="manual">
                 <ModelForm formData={formData} setFormData={setFormData} />
               </TabsContent>
@@ -238,10 +240,10 @@ export function ModelTable() {
                 setPreviewData(null);
                 setHfId("");
               }}>
-                Cancel
+                {t("cancel")}
               </Button>
               <Button onClick={handleAdd} disabled={!formData.name}>
-                Add Model
+                {t("addModel")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -252,13 +254,13 @@ export function ModelTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Hugging Face ID</TableHead>
-              <TableHead className="text-right">Params (B)</TableHead>
-              <TableHead className="text-right">Layers</TableHead>
-              <TableHead className="text-right">Hidden Size</TableHead>
-              <TableHead className="text-right">Heads</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              <TableHead>{t("name")}</TableHead>
+              <TableHead>{t("huggingfaceId")}</TableHead>
+              <TableHead className="text-right">{t("paramsBillions")}</TableHead>
+              <TableHead className="text-right">{t("numLayers")}</TableHead>
+              <TableHead className="text-right">{t("hiddenSize")}</TableHead>
+              <TableHead className="text-right">{t("numAttentionHeads")}</TableHead>
+              <TableHead className="w-[100px]">{t("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -303,9 +305,9 @@ export function ModelTable() {
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">
                         <DialogHeader>
-                          <DialogTitle>Edit Model</DialogTitle>
+                          <DialogTitle>{t("editModel")}</DialogTitle>
                           <DialogDescription>
-                            Update model configuration.
+                            {t("editModelDesc")}
                           </DialogDescription>
                         </DialogHeader>
                         <ModelForm formData={formData} setFormData={setFormData} />
@@ -317,9 +319,9 @@ export function ModelTable() {
                               setFormData(emptyFormData);
                             }}
                           >
-                            Cancel
+                            {t("cancel")}
                           </Button>
-                          <Button onClick={handleEdit}>Save Changes</Button>
+                          <Button onClick={handleEdit}>{t("save")}</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
@@ -332,16 +334,16 @@ export function ModelTable() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Model</AlertDialogTitle>
+                          <AlertDialogTitle>{t("delete")} Model</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to delete {m.name}? This action
                             cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
                           <AlertDialogAction onClick={() => handleDelete(m.id)}>
-                            Delete
+                            {t("delete")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -363,11 +365,12 @@ interface ModelFormProps {
 }
 
 function ModelForm({ formData, setFormData }: ModelFormProps) {
+  const { t } = useLanguageStore();
   return (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
+          <Label htmlFor="name">{t("name")}</Label>
           <Input
             id="name"
             value={formData.name}
@@ -376,7 +379,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="hf_id">Hugging Face ID</Label>
+          <Label htmlFor="hf_id">{t("huggingfaceId")}</Label>
           <Input
             id="hf_id"
             value={formData.huggingface_id}
@@ -385,10 +388,10 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
       </div>
-      
+
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="params">Parameters (Billion)</Label>
+          <Label htmlFor="params">{t("paramsBillions")}</Label>
           <Input
             id="params"
             type="number"
@@ -400,7 +403,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="layers">Number of Layers</Label>
+          <Label htmlFor="layers">{t("numLayers")}</Label>
           <Input
             id="layers"
             type="number"
@@ -411,7 +414,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="hidden_size">Hidden Size</Label>
+          <Label htmlFor="hidden_size">{t("hiddenSize")}</Label>
           <Input
             id="hidden_size"
             type="number"
@@ -425,7 +428,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="attn_heads">Attention Heads</Label>
+          <Label htmlFor="attn_heads">{t("numAttentionHeads")}</Label>
           <Input
             id="attn_heads"
             type="number"
@@ -436,7 +439,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="kv_heads">KV Heads</Label>
+          <Label htmlFor="kv_heads">{t("numKeyValueHeads")}</Label>
           <Input
             id="kv_heads"
             type="number"
@@ -447,7 +450,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="head_dim">Head Dimension</Label>
+          <Label htmlFor="head_dim">{t("headDim")}</Label>
           <Input
             id="head_dim"
             type="number"
@@ -461,7 +464,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="vocab_size">Vocabulary Size</Label>
+          <Label htmlFor="vocab_size">{t("vocabSize")}</Label>
           <Input
             id="vocab_size"
             type="number"
@@ -472,7 +475,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="intermediate">Intermediate Size</Label>
+          <Label htmlFor="intermediate">{t("intermediateSize")}</Label>
           <Input
             id="intermediate"
             type="number"
@@ -483,7 +486,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="max_pos">Max Position Embeddings</Label>
+          <Label htmlFor="max_pos">{t("maxPositionEmbeddings")}</Label>
           <Input
             id="max_pos"
             type="number"

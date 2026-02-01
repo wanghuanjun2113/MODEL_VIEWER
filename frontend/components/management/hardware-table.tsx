@@ -4,6 +4,7 @@ import React from "react"
 
 import { useState } from "react";
 import { useMFUStore } from "@/lib/store";
+import { useLanguageStore } from "@/lib/i18n";
 import type { Hardware, HardwareFormData } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,7 @@ const emptyFormData: HardwareFormData = {
   name: "",
   fp16_peak_tflops: 0,
   bf16_peak_tflops: 0,
-  fp32_peak_tflops: 0,
+  int8_peak_tops: 0,
   memory_size_gb: 0,
   memory_bandwidth_tbps: 0,
 };
@@ -51,35 +52,36 @@ const emptyFormData: HardwareFormData = {
 export function HardwareTable() {
   const { hardware, addHardware, updateHardware, deleteHardware, importHardware } =
     useMFUStore();
+  const { t } = useLanguageStore();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingHardware, setEditingHardware] = useState<Hardware | null>(null);
   const [formData, setFormData] = useState<HardwareFormData>(emptyFormData);
 
   const handleAdd = () => {
     if (!formData.name) {
-      toast.error("Name is required");
+      toast.error(t("nameRequired"));
       return;
     }
     addHardware(formData);
     setFormData(emptyFormData);
     setIsAddOpen(false);
-    toast.success("Hardware added");
+    toast.success(t("hardwareAdded"));
   };
 
   const handleEdit = () => {
     if (!editingHardware || !formData.name) {
-      toast.error("Name is required");
+      toast.error(t("nameRequired"));
       return;
     }
     updateHardware(editingHardware.id, formData);
     setEditingHardware(null);
     setFormData(emptyFormData);
-    toast.success("Hardware updated");
+    toast.success(t("hardwareUpdated"));
   };
 
   const handleDelete = (id: string) => {
     deleteHardware(id);
-    toast.success("Hardware deleted");
+    toast.success(t("hardwareDeleted"));
   };
 
   const handleExport = () => {
@@ -106,7 +108,7 @@ export function HardwareTable() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success("Template downloaded");
+    toast.success(t("templateDownloaded"));
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,7 +134,7 @@ export function HardwareTable() {
             name: values[0]?.trim() || "",
             fp16_peak_tflops: parseFloat(values[1]) || 0,
             bf16_peak_tflops: parseFloat(values[2]) || 0,
-            fp32_peak_tflops: parseFloat(values[3]) || 0,
+            int8_peak_tops: parseFloat(values[3]) || 0,
             memory_size_gb: parseFloat(values[4]) || 0,
             memory_bandwidth_tbps: parseFloat(values[5]) || 0,
             created_at: new Date().toISOString(),
@@ -141,9 +143,9 @@ export function HardwareTable() {
         });
 
         importHardware(items);
-        toast.success(`Imported ${items.length} hardware entries`);
+        toast.success(t("importHardwareSuccess", { count: items.length }));
       } catch {
-        toast.error("Failed to parse CSV file");
+        toast.error(t("importHardwareFailed"));
       }
     };
     reader.readAsText(file);
@@ -156,7 +158,7 @@ export function HardwareTable() {
       name: h.name,
       fp16_peak_tflops: h.fp16_peak_tflops,
       bf16_peak_tflops: h.bf16_peak_tflops,
-      fp32_peak_tflops: h.fp32_peak_tflops,
+      int8_peak_tops: h.int8_peak_tops,
       memory_size_gb: h.memory_size_gb,
       memory_bandwidth_tbps: h.memory_bandwidth_tbps,
     });
@@ -168,7 +170,7 @@ export function HardwareTable() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
-            Download Template
+            {t("downloadTemplate")}
           </Button>
           <div className="relative">
             <input
@@ -179,7 +181,7 @@ export function HardwareTable() {
             />
             <Button variant="outline" size="sm">
               <Upload className="mr-2 h-4 w-4" />
-              Import CSV
+              {t("import")}
             </Button>
           </div>
         </div>
@@ -188,22 +190,22 @@ export function HardwareTable() {
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
-              Add Hardware
+              {t("addHardware")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Hardware</DialogTitle>
+              <DialogTitle>{t("addHardware")}</DialogTitle>
               <DialogDescription>
-                Add a new hardware configuration for MFU calculations.
+                {t("hardwareConfigDesc")}
               </DialogDescription>
             </DialogHeader>
             <HardwareForm formData={formData} setFormData={setFormData} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>
-                Cancel
+                {t("cancel")}
               </Button>
-              <Button onClick={handleAdd}>Add Hardware</Button>
+              <Button onClick={handleAdd}>{t("addHardware")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -213,13 +215,13 @@ export function HardwareTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead className="text-right">FP16 (TFLOPS)</TableHead>
-              <TableHead className="text-right">BF16 (TFLOPS)</TableHead>
-              <TableHead className="text-right">FP32 (TFLOPS)</TableHead>
-              <TableHead className="text-right">Memory (GB)</TableHead>
-              <TableHead className="text-right">Bandwidth (TB/s)</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              <TableHead>{t("name")}</TableHead>
+              <TableHead className="text-right">FP16</TableHead>
+              <TableHead className="text-right">BF16</TableHead>
+              <TableHead className="text-right">INT8</TableHead>
+              <TableHead className="text-right">{t("memorySize")}</TableHead>
+              <TableHead className="text-right">{t("memoryBandwidth")}</TableHead>
+              <TableHead className="w-[100px]">{t("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -233,7 +235,7 @@ export function HardwareTable() {
                   {h.bf16_peak_tflops}
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  {h.fp32_peak_tflops}
+                  {h.int8_peak_tops}
                 </TableCell>
                 <TableCell className="text-right font-mono">
                   {h.memory_size_gb}
@@ -264,9 +266,9 @@ export function HardwareTable() {
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>Edit Hardware</DialogTitle>
+                          <DialogTitle>{t("editHardware")}</DialogTitle>
                           <DialogDescription>
-                            Update hardware configuration.
+                            {t("editHardwareDesc")}
                           </DialogDescription>
                         </DialogHeader>
                         <HardwareForm formData={formData} setFormData={setFormData} />
@@ -278,9 +280,9 @@ export function HardwareTable() {
                               setFormData(emptyFormData);
                             }}
                           >
-                            Cancel
+                            {t("cancel")}
                           </Button>
-                          <Button onClick={handleEdit}>Save Changes</Button>
+                          <Button onClick={handleEdit}>{t("save")}</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
@@ -293,16 +295,15 @@ export function HardwareTable() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Hardware</AlertDialogTitle>
+                          <AlertDialogTitle>{t("deleteHardware")}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you sure you want to delete {h.name}? This action
-                            cannot be undone.
+                            {t("deleteHardwareConfirm")}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
                           <AlertDialogAction onClick={() => handleDelete(h.id)}>
-                            Delete
+                            {t("delete")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -324,10 +325,11 @@ interface HardwareFormProps {
 }
 
 function HardwareForm({ formData, setFormData }: HardwareFormProps) {
+  const { t } = useLanguageStore();
   return (
     <div className="grid gap-4 py-4">
       <div className="space-y-2">
-        <Label htmlFor="name">Name</Label>
+        <Label htmlFor="name">{t("name")}</Label>
         <Input
           id="name"
           value={formData.name}
@@ -337,7 +339,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="fp16">FP16 Peak (TFLOPS)</Label>
+          <Label htmlFor="fp16">{t("fp16PeakTflops")}</Label>
           <Input
             id="fp16"
             type="number"
@@ -348,7 +350,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="bf16">BF16 Peak (TFLOPS)</Label>
+          <Label htmlFor="bf16">{t("bf16PeakTflops")}</Label>
           <Input
             id="bf16"
             type="number"
@@ -361,18 +363,18 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="fp32">FP32 Peak (TFLOPS)</Label>
+          <Label htmlFor="int8">{t("int8PeakTops")}</Label>
           <Input
-            id="fp32"
+            id="int8"
             type="number"
-            value={formData.fp32_peak_tflops}
+            value={formData.int8_peak_tops}
             onChange={(e) =>
-              setFormData({ ...formData, fp32_peak_tflops: Number(e.target.value) })
+              setFormData({ ...formData, int8_peak_tops: Number(e.target.value) })
             }
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="memory">Memory Size (GB)</Label>
+          <Label htmlFor="memory">{t("memorySize")}</Label>
           <Input
             id="memory"
             type="number"
@@ -384,7 +386,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="bandwidth">Memory Bandwidth (TB/s)</Label>
+        <Label htmlFor="bandwidth">{t("memoryBandwidth")}</Label>
         <Input
           id="bandwidth"
           type="number"

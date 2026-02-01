@@ -3,6 +3,7 @@
 import React from "react"
 
 import { useMFUStore } from "@/lib/store";
+import { useLanguageStore } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -18,24 +19,25 @@ import { cn } from "@/lib/utils";
 
 export function ResultsPanel() {
   const { results } = useMFUStore();
+  const { t } = useLanguageStore();
   const latestResult = results[0];
 
   if (!latestResult) {
     return (
       <div className="space-y-4">
         <MetricCard
-          title="MFU"
+          title={t("mfu")}
           icon={<Activity className="h-5 w-5" />}
           value="--"
           unit="%"
-          description="Model FLOPs Utilization"
+          description={t("mfu")}
         />
         <MetricCard
-          title="Bandwidth Utilization"
+          title={t("memoryBandwidthUtilization")}
           icon={<HardDrive className="h-5 w-5" />}
           value="--"
           unit="%"
-          description="Memory Bandwidth Usage"
+          description={t("memoryBandwidthUtilization")}
         />
         <SuggestionsCard suggestions={[]} />
       </div>
@@ -48,20 +50,20 @@ export function ResultsPanel() {
   return (
     <div className="space-y-4">
       <MetricCard
-        title="MFU"
+        title={t("mfu")}
         icon={<Activity className="h-5 w-5" />}
         value={latestResult.mfu.toFixed(2)}
         unit="%"
-        description="Model FLOPs Utilization"
+        description={t("mfu")}
         progress={latestResult.mfu}
         status={mfuStatus}
       />
       <MetricCard
-        title="Bandwidth Utilization"
+        title={t("memoryBandwidthUtilization")}
         icon={<HardDrive className="h-5 w-5" />}
         value={latestResult.memory_bandwidth_utilization.toFixed(2)}
         unit="%"
-        description="Memory Bandwidth Usage"
+        description={t("memoryBandwidthUtilization")}
         progress={latestResult.memory_bandwidth_utilization}
         status={bandwidthStatus}
       />
@@ -70,12 +72,12 @@ export function ResultsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Zap className="h-4 w-4 text-primary" />
-            Bottleneck Analysis
+            {t("bottleneck")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Type</span>
+            <span className="text-sm text-muted-foreground">{t("bottleneck")}</span>
             <Badge
               variant={
                 latestResult.bottleneck_type === "compute"
@@ -86,26 +88,26 @@ export function ResultsPanel() {
               }
             >
               {latestResult.bottleneck_type === "compute"
-                ? "Compute Bound"
+                ? t("computeLimited")
                 : latestResult.bottleneck_type === "memory"
-                ? "Memory Bound"
-                : "Balanced"}
+                ? t("memoryLimited")
+                : t("balanced")}
             </Badge>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Actual TFLOPS</span>
+            <span className="text-sm text-muted-foreground">{t("actualFlops")}</span>
             <span className="font-mono text-sm">
               {latestResult.actual_flops.toFixed(2)} TFLOPS
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Theoretical TFLOPS</span>
+            <span className="text-sm text-muted-foreground">{t("theoreticalFlops")}</span>
             <span className="font-mono text-sm">
               {latestResult.theoretical_flops.toFixed(2)} TFLOPS
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">KV Cache Size</span>
+            <span className="text-sm text-muted-foreground">KV Cache</span>
             <span className="font-mono text-sm">
               {latestResult.kv_cache_size_gb.toFixed(2)} GB
             </span>
@@ -173,6 +175,7 @@ function MetricCard({
 }
 
 function StatusIndicator({ status }: { status: "good" | "warning" | "critical" }) {
+  const { t } = useLanguageStore();
   return (
     <div
       className={cn(
@@ -193,12 +196,13 @@ function StatusIndicator({ status }: { status: "good" | "warning" | "critical" }
 }
 
 function SuggestionsCard({ suggestions }: { suggestions: string[] }) {
+  const { t } = useLanguageStore();
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <Lightbulb className="h-4 w-4 text-warning" />
-          Optimization Suggestions
+          {t("optimizationSuggestions")}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -208,13 +212,13 @@ function SuggestionsCard({ suggestions }: { suggestions: string[] }) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {suggestions.map((suggestion, index) => (
+            {suggestions.map((suggestionKey, index) => (
               <li
                 key={index}
                 className="flex items-start gap-2 text-sm text-muted-foreground"
               >
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                {suggestion}
+                {t(suggestionKey as any)}
               </li>
             ))}
           </ul>

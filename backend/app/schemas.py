@@ -152,7 +152,9 @@ class CalculationInput(BaseModel):
 
     hardware_id: int = Field(..., description="硬件 ID")
     model_id: int = Field(..., description="模型 ID")
-    precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="计算精度")
+    precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="计算精度 (向后兼容)")
+    attention_precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="Attention 层精度")
+    ffn_precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="FFN 层精度")
     first_token_latency_ms: float = Field(..., gt=0, description="首 Token 时延 (ms)")
     tpot_ms: float = Field(..., gt=0, description="每个输出 Token 的时间 (ms)")
     context_length: int = Field(..., gt=0, description="上下文长度 (tokens)")

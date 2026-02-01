@@ -1,6 +1,7 @@
 "use client";
 
 import { useMFUStore } from "@/lib/store";
+import { useLanguageStore } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 
 export function ComparisonTable() {
   const { results, deleteResult, clearResults } = useMFUStore();
+  const { t } = useLanguageStore();
 
   const handleExport = () => {
     if (results.length === 0) {
@@ -66,12 +68,12 @@ export function ComparisonTable() {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
             <GitCompare className="h-5 w-5 text-primary" />
-            Results Comparison
+            {t("comparison")}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
-              Export
+              {t("export")}
             </Button>
             <Button
               variant="ghost"
@@ -81,7 +83,7 @@ export function ComparisonTable() {
                 toast.success("All results cleared");
               }}
             >
-              Clear All
+              {t("clearAll")}
             </Button>
           </div>
         </div>
@@ -91,14 +93,14 @@ export function ComparisonTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[120px]">Hardware</TableHead>
-                <TableHead className="min-w-[120px]">Model</TableHead>
-                <TableHead>Precision</TableHead>
-                <TableHead className="text-right">MFU</TableHead>
-                <TableHead className="text-right">BW Util</TableHead>
-                <TableHead>Bottleneck</TableHead>
-                <TableHead className="text-right">Context</TableHead>
-                <TableHead className="text-right">Batch</TableHead>
+                <TableHead className="min-w-[120px]">{t("hardware")}</TableHead>
+                <TableHead className="min-w-[120px]">{t("model")}</TableHead>
+                <TableHead>{t("precision")}</TableHead>
+                <TableHead className="text-right">{t("mfu")}</TableHead>
+                <TableHead className="text-right">BW</TableHead>
+                <TableHead>{t("bottleneck")}</TableHead>
+                <TableHead className="text-right">Ctx</TableHead>
+                <TableHead className="text-right">BS</TableHead>
                 <TableHead className="w-[50px]" />
               </TableRow>
             </TableHeader>
@@ -130,7 +132,11 @@ export function ComparisonTable() {
                           : "outline"
                       }
                     >
-                      {result.bottleneck_type}
+                      {result.bottleneck_type === "compute"
+                        ? t("computeLimited")
+                        : result.bottleneck_type === "memory"
+                        ? t("memoryLimited")
+                        : t("balanced")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono">
