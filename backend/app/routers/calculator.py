@@ -77,7 +77,10 @@ def calculate_mfu(input_data: CalculationInput, db: Session = Depends(get_db)):
         model_dict = model_to_dict(model)
 
         calc_input = {
+            "gpu_count": input_data.gpu_count,
             "precision": input_data.precision.value,
+            "attention_precision": input_data.attention_precision.value,
+            "ffn_precision": input_data.ffn_precision.value,
             "first_token_latency_ms": input_data.first_token_latency_ms,
             "tpot_ms": input_data.tpot_ms,
             "context_length": input_data.context_length,

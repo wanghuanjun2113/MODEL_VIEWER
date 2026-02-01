@@ -152,6 +152,7 @@ class CalculationInput(BaseModel):
 
     hardware_id: int = Field(..., description="硬件 ID")
     model_id: int = Field(..., description="模型 ID")
+    gpu_count: int = Field(default=1, ge=1, le=32, description="GPU 数量 (1, 2, 4, 8, 16, 32)")
     precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="计算精度 (向后兼容)")
     attention_precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="Attention 层精度")
     ffn_precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="FFN 层精度")
@@ -245,3 +246,45 @@ class PaginatedResponse(BaseModel):
     total_pages: int
     has_next: bool
     has_previous: bool
+
+
+# ============ Concurrency Calculator Schemas ============
+
+class ConcurrencyInput(BaseModel):
+    """并发计算输入 Schema"""
+
+    hardware_id: int = Field(..., description="硬件 ID")
+    model_id: int = Field(..., description="模型 ID")
+    gpu_count: int = Field(default=1, ge=1, le=32, description="GPU 数量 (1, 2, 4, 8, 16, 32)")
+    context_length: int = Field(default=4096, gt=0, description="上下文长度 (tokens)")
+    precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="计算精度")
+    framework_overhead_gb: float = Field(default=2.0, ge=0, description="框架开销 (GB)")
+
+
+class MemoryBreakdown(BaseModel):
+    """显存占用明细 Schema"""
+
+    weight_memory_gb: float = Field(..., description="权重占用 (GB)")
+    framework_overhead_gb: float = Field(..., description="框架开销 (GB)")
+    kv_cache_memory_gb: float = Field(..., description="KV Cache 占用 (GB)")
+    activation_memory_gb: float = Field(..., description="激活预留 (GB)")
+    total_memory_gb: float = Field(..., description="总占用 (GB)")
+
+
+class ConcurrencyResult(BaseModel):
+    """并发计算结果 Schema"""
+
+    gpu_count: int = Field(..., description="GPU 数量")
+    max_concurrency_without_pa: int = Field(..., description="不考虑 Paged Attention 的最大并发")
+    max_concurrency_with_pa: int = Field(..., description="考虑 Paged Attention 的最大并发")
+    memory_breakdown: MemoryBreakdown = Field(..., description="单并发显存占用明细")
+    hardware_memory_gb: float = Field(..., description="硬件总显存 (GB)")
+    available_memory_gb: float = Field(..., description="可用显存 (GB)")
+
+
+class ConcurrencyResponse(BaseModel):
+    """并发计算响应 Schema"""
+
+    success: bool
+    result: Optional[ConcurrencyResult] = None
+    error: Optional[str] = None

@@ -63,8 +63,10 @@ class TestMFUCalculator:
         """测试 Prefill FLOPs 计算公式"""
         context_length = 2048
 
-        # 使用计算器
-        result = calculator._calculate_prefill_flops(llama7b_model, context_length)
+        # 使用计算器 (with separate precision)
+        result = calculator._calculate_prefill_flops(
+            llama7b_model, context_length, "fp16", "fp16"
+        )
 
         # 验证结果大于 0
         assert result > 0
@@ -88,13 +90,17 @@ class TestMFUCalculator:
         generated_length = 128
         batch_size = 1
 
-        result = calculator._calculate_decode_flops(llama7b_model, generated_length, batch_size)
+        result = calculator._calculate_decode_flops(
+            llama7b_model, generated_length, batch_size, "fp16", "fp16"
+        )
 
         # 验证结果大于 0
         assert result > 0
 
         # 验证 batch_size 影响
-        result_batch2 = calculator._calculate_decode_flops(llama7b_model, generated_length, 2)
+        result_batch2 = calculator._calculate_decode_flops(
+            llama7b_model, generated_length, 2, "fp16", "fp16"
+        )
         assert result_batch2 == result * 2
 
     def test_calculate_kv_cache(self, calculator, llama7b_model):
@@ -166,6 +172,8 @@ class TestMFUCalculator:
         """测试完整计算流程"""
         input_data = CalculationInput(
             precision="fp16",
+            attention_precision="fp16",
+            ffn_precision="fp16",
             first_token_latency_ms=50.0,
             tpot_ms=10.0,
             context_length=2048,
@@ -192,6 +200,8 @@ class TestMFUCalculator:
         """测试 MFU 值在合理范围内"""
         input_data = CalculationInput(
             precision="fp16",
+            attention_precision="fp16",
+            ffn_precision="fp16",
             first_token_latency_ms=50.0,
             tpot_ms=10.0,
             context_length=2048,

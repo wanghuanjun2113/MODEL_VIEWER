@@ -25,6 +25,7 @@ class HardwareInfo:
     fp32_peak_tflops: float
     memory_size_gb: float
     memory_bandwidth_tbps: float
+    gpu_count: int = 1  # Number of GPUs (1, 2, 4, 8, 16, 32)
 
 
 @dataclass
@@ -123,8 +124,8 @@ class MFUCalculator:
         Returns:
             计算结果
         """
-        # 1. 获取峰值算力（使用 attention precision）
-        peak_flops = self._get_peak_flops(hardware, input_data.attention_precision)
+        # 1. 获取峰值算力（使用 attention precision），乘以 GPU 数量
+        peak_flops = self._get_peak_flops(hardware, input_data.attention_precision) * hardware.gpu_count
 
         # 2. 计算各阶段 FLOPs（使用分离的精度）
         prefill_flops = self._calculate_prefill_flops(
@@ -177,7 +178,7 @@ class MFUCalculator:
         )
 
         memory_bandwidth_utilization = (
-            required_bandwidth / hardware.memory_bandwidth_tbps * 100
+            required_bandwidth / (hardware.memory_bandwidth_tbps * hardware.gpu_count) * 100
         ) if hardware.memory_bandwidth_tbps > 0 else 0
 
         # 7. 性能指标
@@ -413,12 +414,15 @@ def calculate_mfu(
     Returns:
         计算结果字典
     """
+    gpu_count = input_data.get("gpu_count", 1)
+
     hw_info = HardwareInfo(
         fp16_peak_tflops=hardware.get("fp16_peak_tflops", 0),
         bf32_peak_tflops=hardware.get("bf32_peak_tflops", 0),
         fp32_peak_tflops=hardware.get("fp32_peak_tflops", 0),
-        memory_size_gb=hardware.get("memory_size_gb", 0),
-        memory_bandwidth_tbps=hardware.get("memory_bandwidth_tbps", 0),
+        memory_size_gb=hardware.get("memory_size_gb", 0) * gpu_count,
+        memory_bandwidth_tbps=hardware.get("memory_bandwidth_tbps", 0) * gpu_count,
+        gpu_count=gpu_count,
     )
 
     model_info = ModelInfo(

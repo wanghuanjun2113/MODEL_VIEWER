@@ -8,7 +8,7 @@ import logging
 import os
 
 from .database import init_db
-from .routers import hardware, model, calculator
+from .routers import hardware, model, calculator, concurrency
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(hardware.router)
 app.include_router(model.router)
 app.include_router(calculator.router)
+app.include_router(concurrency.router)
 
 # 配置静态文件服务 - 支持前端构建产物
 frontend_dist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'dist')
