@@ -50,10 +50,12 @@ temp/
 htmlcov/
 .pytest_cache/
 *.egg-info/
+frontend/coverage/
 
 # Frontend
 frontend/.pnpm-store/
 frontend/.next/
+frontend/next-env.d.ts
 
 # Claude Code
 .claude/settings.local.json
