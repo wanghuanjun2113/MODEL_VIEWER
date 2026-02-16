@@ -113,6 +113,10 @@ export interface MemoryBreakdown {
 }
 
 export interface ConcurrencyResult {
+  id: string;
+  input: ConcurrencyInput;
+  hardware: Hardware;
+  model: Model;
   gpu_count: number;
   max_concurrency_without_pa: number;
   max_concurrency_with_pa: number;
@@ -121,6 +125,7 @@ export interface ConcurrencyResult {
   available_memory_gb: number;
   per_request_kv_cache_gb: number;  // KV cache per request (full context)
   per_request_activation_gb: number;  // Activation memory per request
+  timestamp: string;
 }
 
 // GPU count options for multi-GPU support

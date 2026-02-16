@@ -11,6 +11,7 @@ import type {
   ModelFormData,
   CalculationInput,
   ConcurrencyInput,
+  ConcurrencyResult,
 } from "./types";
 
 // Default hardware presets
@@ -213,6 +214,12 @@ interface MFUStore {
   addResult: (result: CalculationResult) => void;
   deleteResult: (id: string) => void;
   clearResults: () => void;
+
+  // Concurrency results
+  concurrencyResults: ConcurrencyResult[];
+  addConcurrencyResult: (result: ConcurrencyResult) => void;
+  deleteConcurrencyResult: (id: string) => void;
+  clearConcurrencyResults: () => void;
 }
 
 export const useMFUStore = create<MFUStore>()(
@@ -484,6 +491,18 @@ export const useMFUStore = create<MFUStore>()(
           results: state.results.filter((r) => r.id !== id),
         })),
       clearResults: () => set({ results: [] }),
+
+      // Concurrency results
+      concurrencyResults: [],
+      addConcurrencyResult: (result) =>
+        set((state) => ({
+          concurrencyResults: [result, ...state.concurrencyResults],
+        })),
+      deleteConcurrencyResult: (id) =>
+        set((state) => ({
+          concurrencyResults: state.concurrencyResults.filter((r) => r.id !== id),
+        })),
+      clearConcurrencyResults: () => set({ concurrencyResults: [] }),
     }),
     {
       name: "mfu-calculator-storage",

@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { Header } from "@/components/header";
 import { ConcurrencyForm } from "@/components/concurrency/concurrency-form";
 import { ConcurrencyResults } from "@/components/concurrency/concurrency-results";
+import { ConcurrencyComparisonTable } from "@/components/concurrency/concurrency-comparison-table";
 import { useLanguageStore } from "@/lib/i18n";
-import type { ConcurrencyResult } from "@/lib/types";
+import { useMFUStore } from "@/lib/store";
 
 export default function ConcurrencyPage() {
   const { t } = useLanguageStore();
-  const [result, setResult] = useState<ConcurrencyResult | null>(null);
+  const { concurrencyResults } = useMFUStore();
   const [key, setKey] = useState(0);
   const [mounted, setMounted] = useState(false);
 
@@ -17,10 +18,12 @@ export default function ConcurrencyPage() {
     setMounted(true);
   }, []);
 
-  const handleCalculate = (newResult: ConcurrencyResult) => {
-    setResult(newResult);
+  const handleCalculate = () => {
     setKey((prev) => prev + 1);
   };
+
+  // Get the latest result for display
+  const latestResult = concurrencyResults[0] || null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -38,9 +41,10 @@ export default function ConcurrencyPage() {
         <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
           <div className="space-y-8">
             <ConcurrencyForm onCalculate={handleCalculate} />
+            <ConcurrencyComparisonTable />
           </div>
           <aside key={key} className="lg:sticky lg:top-20 lg:h-fit">
-            <ConcurrencyResults result={result} />
+            <ConcurrencyResults result={latestResult} />
           </aside>
         </div>
       </main>

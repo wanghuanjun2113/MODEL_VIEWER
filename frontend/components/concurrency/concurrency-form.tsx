@@ -6,7 +6,8 @@ import { useState, useEffect } from "react";
 import { useMFUStore } from "@/lib/store";
 import { calculateMaxConcurrency, calculateMaxConcurrencyWithPA } from "@/lib/concurrency-calculator";
 import { useLanguageStore } from "@/lib/i18n";
-import type { Precision } from "@/lib/types";
+import { generateUUID } from "@/lib/utils";
+import type { Precision, ConcurrencyResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,11 +33,11 @@ const FRAMEWORK_PRESETS = [
 ] as const;
 
 interface ConcurrencyFormProps {
-  onCalculate: (result: Awaited<ReturnType<typeof calculateMaxConcurrency>>) => void;
+  onCalculate: () => void;
 }
 
 export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
-  const { hardware, models, concurrencyInput, setConcurrencyInput } = useMFUStore();
+  const { hardware, models, concurrencyInput, setConcurrencyInput, addConcurrencyResult } = useMFUStore();
   const { t } = useLanguageStore();
   const [isCalculating, setIsCalculating] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -85,11 +86,23 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
 
       const result = calculateMaxConcurrency(concurrencyInput, selectedHardware, selectedModel);
       // Calculate with Paged Attention
-      const resultWithPA = {
-        ...result,
+      const fullResult: ConcurrencyResult = {
+        id: generateUUID(),
+        input: concurrencyInput,
+        hardware: selectedHardware,
+        model: selectedModel,
+        gpu_count: concurrencyInput.gpu_count,
+        max_concurrency_without_pa: result.max_concurrency_without_pa,
         max_concurrency_with_pa: calculateMaxConcurrencyWithPA(result),
+        memory_breakdown: result.memory_breakdown,
+        hardware_memory_gb: result.hardware_memory_gb,
+        available_memory_gb: result.available_memory_gb,
+        per_request_kv_cache_gb: result.per_request_kv_cache_gb,
+        per_request_activation_gb: result.per_request_activation_gb,
+        timestamp: new Date().toISOString(),
       };
-      onCalculate(resultWithPA);
+      addConcurrencyResult(fullResult);
+      onCalculate();
 
       toast.success(t("calculationCompleted"));
     } catch (error) {
