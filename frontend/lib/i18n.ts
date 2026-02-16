@@ -175,6 +175,16 @@ export const translations = {
     hardwareInfoTip: "Total GPU memory available for model loading",
     totalMemory: "Total Memory",
 
+    // Concurrency memory breakdown
+    gpuInfo: "GPU Info",
+    singleGpuMemory: "Single GPU Memory",
+    fixedMemory: "Fixed Memory Usage",
+    kvCacheInfo: "KVCache Info",
+    availableKvCacheMemory: "Available KVCache Memory",
+    singleTokenKvCache: "Single Token KVCache",
+    singleConcurrencyKvCache: "Single Concurrency KVCache",
+    maxConcurrencyLabel: "Max Concurrency",
+
     // Status indicators
     statusGood: "Good",
     statusWarning: "Warning",
@@ -349,6 +359,16 @@ export const translations = {
     hardwareInfo: "硬件信息",
     hardwareInfoTip: "可用于模型加载的 GPU 显存总量",
     totalMemory: "总显存",
+
+    // Concurrency memory breakdown
+    gpuInfo: "GPU 信息",
+    singleGpuMemory: "单卡显存",
+    fixedMemory: "固定显存占用",
+    kvCacheInfo: "KVCache 信息",
+    availableKvCacheMemory: "KVCache 可用显存",
+    singleTokenKvCache: "单Token KVCache",
+    singleConcurrencyKvCache: "单并发 KVCache",
+    maxConcurrencyLabel: "最大并发数",
 
     // Status indicators
     statusGood: "良好",
