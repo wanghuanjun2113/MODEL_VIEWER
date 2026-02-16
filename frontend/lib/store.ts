@@ -9,6 +9,8 @@ import type {
   CalculationResult,
   HardwareFormData,
   ModelFormData,
+  CalculationInput,
+  ConcurrencyInput,
 } from "./types";
 
 // Default hardware presets
@@ -149,11 +151,47 @@ const defaultModels: Model[] = [
   },
 ];
 
+// Default form input
+const defaultFormInput: CalculationInput = {
+  hardware_id: "",
+  model_id: "",
+  gpu_count: 1,
+  precision: "FP16",
+  attention_precision: "FP16",
+  ffn_precision: "FP16",
+  first_token_latency_ms: 100,
+  tpot_ms: 20,
+  context_length: 2048,
+  generated_length: 256,
+  batch_size: 1,
+};
+
+// Default concurrency form input
+const defaultConcurrencyInput: ConcurrencyInput = {
+  hardware_id: "",
+  model_id: "",
+  gpu_count: 1,
+  context_length: 4096,
+  attention_precision: "FP16",
+  framework_overhead_gb: 2,
+  activation_reserve_gb: 5,
+};
+
 interface MFUStore {
   // Configuration
   useApi: boolean;
   setUseApi: (useApi: boolean) => void;
   isLoading: boolean;
+
+  // Form input state (persisted)
+  formInput: CalculationInput;
+  setFormInput: (input: Partial<CalculationInput>) => void;
+  resetFormInput: () => void;
+
+  // Concurrency form input state (persisted)
+  concurrencyInput: ConcurrencyInput;
+  setConcurrencyInput: (input: Partial<ConcurrencyInput>) => void;
+  resetConcurrencyInput: () => void;
 
   // Hardware
   hardware: Hardware[];
@@ -184,6 +222,22 @@ export const useMFUStore = create<MFUStore>()(
       useApi: false,
       isLoading: false,
       setUseApi: (useApi) => set({ useApi }),
+
+      // Form input state
+      formInput: defaultFormInput,
+      setFormInput: (input) =>
+        set((state) => ({
+          formInput: { ...state.formInput, ...input },
+        })),
+      resetFormInput: () => set({ formInput: defaultFormInput }),
+
+      // Concurrency form input state
+      concurrencyInput: defaultConcurrencyInput,
+      setConcurrencyInput: (input) =>
+        set((state) => ({
+          concurrencyInput: { ...state.concurrencyInput, ...input },
+        })),
+      resetConcurrencyInput: () => set({ concurrencyInput: defaultConcurrencyInput }),
 
       // Hardware
       hardware: defaultHardware,

@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useMFUStore } from "@/lib/store";
 import { calculateMaxConcurrency, calculateMaxConcurrencyWithPA } from "@/lib/concurrency-calculator";
 import { useLanguageStore } from "@/lib/i18n";
-import type { ConcurrencyInput, Precision } from "@/lib/types";
+import type { Precision } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,7 @@ interface ConcurrencyFormProps {
 }
 
 export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
-  const { hardware, models } = useMFUStore();
+  const { hardware, models, concurrencyInput, setConcurrencyInput } = useMFUStore();
   const { t } = useLanguageStore();
   const [isCalculating, setIsCalculating] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -45,27 +45,17 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
     setMounted(true);
   }, []);
 
-  const [formData, setFormData] = useState<ConcurrencyInput>({
-    hardware_id: "",
-    model_id: "",
-    gpu_count: 1,
-    context_length: 4096,
-    attention_precision: "FP16",
-    framework_overhead_gb: 2,
-    activation_reserve_gb: 5,
-  });
-
   const [frameworkPreset, setFrameworkPreset] = useState<"vLLM" | "TensorRT-LLM" | "TGI" | "自定义">("vLLM");
 
   const handleFrameworkPresetChange = (preset: string) => {
     setFrameworkPreset(preset as "vLLM" | "TensorRT-LLM" | "TGI" | "自定义");
     const presetValue = FRAMEWORK_PRESETS.find((p) => p.label === preset)?.value ?? 0;
-    setFormData({ ...formData, framework_overhead_gb: presetValue });
+    setConcurrencyInput({ ...concurrencyInput, framework_overhead_gb: presetValue });
   };
 
   const handleFrameworkOverheadChange = (value: string) => {
     const numValue = Number(value);
-    setFormData({ ...formData, framework_overhead_gb: isNaN(numValue) ? 0 : numValue });
+    setConcurrencyInput({ ...concurrencyInput, framework_overhead_gb: isNaN(numValue) ? 0 : numValue });
     if (frameworkPreset !== "自定义") {
       setFrameworkPreset("自定义");
     }
@@ -74,13 +64,13 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.hardware_id || !formData.model_id) {
+    if (!concurrencyInput.hardware_id || !concurrencyInput.model_id) {
       toast.error(t("pleaseSelectHardwareModel"));
       return;
     }
 
-    const selectedHardware = hardware.find((h) => h.id === formData.hardware_id);
-    const selectedModel = models.find((m) => m.id === formData.model_id);
+    const selectedHardware = hardware.find((h) => h.id === concurrencyInput.hardware_id);
+    const selectedModel = models.find((m) => m.id === concurrencyInput.model_id);
 
     if (!selectedHardware || !selectedModel) {
       toast.error(t("invalidSelection"));
@@ -93,7 +83,7 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
       // Simulate async calculation
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const result = calculateMaxConcurrency(formData, selectedHardware, selectedModel);
+      const result = calculateMaxConcurrency(concurrencyInput, selectedHardware, selectedModel);
       // Calculate with Paged Attention
       const resultWithPA = {
         ...result,
@@ -130,9 +120,9 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
                 {tt("model", "Model")}
               </Label>
               <Select
-                value={formData.model_id}
+                value={concurrencyInput.model_id}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, model_id: value })
+                  setConcurrencyInput({ ...concurrencyInput, model_id: value })
                 }
               >
                 <SelectTrigger id="model">
@@ -155,9 +145,9 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
                 {tt("hardware", "Hardware")}
               </Label>
               <Select
-                value={formData.hardware_id}
+                value={concurrencyInput.hardware_id}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, hardware_id: value })
+                  setConcurrencyInput({ ...concurrencyInput, hardware_id: value })
                 }
               >
                 <SelectTrigger id="hardware">
@@ -180,9 +170,9 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
                 {tt("gpuCount", "GPU Count")}
               </Label>
               <Select
-                value={String(formData.gpu_count)}
+                value={String(concurrencyInput.gpu_count)}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, gpu_count: Number(value) })
+                  setConcurrencyInput({ ...concurrencyInput, gpu_count: Number(value) })
                 }
               >
                 <SelectTrigger id="gpu_count">
@@ -211,10 +201,10 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
               id="context_length"
               type="number"
               min={1}
-              value={formData.context_length}
+              value={concurrencyInput.context_length}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
+                setConcurrencyInput({
+                  ...concurrencyInput,
                   context_length: Number(e.target.value),
                 })
               }
@@ -258,7 +248,7 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
                   type="number"
                   min={0}
                   step={0.1}
-                  value={formData.framework_overhead_gb}
+                  value={concurrencyInput.framework_overhead_gb}
                   onChange={(e) => handleFrameworkOverheadChange(e.target.value)}
                 />
               </div>
@@ -278,10 +268,10 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
               type="number"
               min={0}
               step={0.5}
-              value={formData.activation_reserve_gb}
+              value={concurrencyInput.activation_reserve_gb}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
+                setConcurrencyInput({
+                  ...concurrencyInput,
                   activation_reserve_gb: Number(e.target.value),
                 })
               }
@@ -294,9 +284,9 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
           <div className="space-y-4">
             <Label className="text-sm font-medium">{tt("attentionPrecision", "Attention Precision")}</Label>
             <RadioGroup
-              value={formData.attention_precision}
+              value={concurrencyInput.attention_precision}
               onValueChange={(value: Precision) =>
-                setFormData({ ...formData, attention_precision: value })
+                setConcurrencyInput({ ...concurrencyInput, attention_precision: value })
               }
               className="flex space-x-4"
             >

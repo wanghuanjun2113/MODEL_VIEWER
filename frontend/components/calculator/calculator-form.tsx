@@ -8,7 +8,7 @@ import { calculateMFU } from "@/lib/calculator";
 import { apiClient } from "@/lib/api";
 import { useLanguageStore } from "@/lib/i18n";
 import { generateUUID } from "@/lib/utils";
-import type { CalculationInput, Precision, GPU_COUNT_OPTIONS } from "@/lib/types";
+import type { Precision, GPU_COUNT_OPTIONS } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ interface CalculatorFormProps {
 }
 
 export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
-  const { hardware, models, addResult, useApi } = useMFUStore();
+  const { hardware, models, addResult, useApi, formInput, setFormInput } = useMFUStore();
   const { t } = useLanguageStore();
   const [isCalculating, setIsCalculating] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -41,30 +41,16 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
 
   const tt = (key: string, fallback: string) => mounted ? t(key as any) : fallback;
 
-  const [formData, setFormData] = useState<CalculationInput>({
-    hardware_id: "",
-    model_id: "",
-    gpu_count: 1,
-    precision: "FP16",
-    attention_precision: "FP16",
-    ffn_precision: "FP16",
-    first_token_latency_ms: 100,
-    tpot_ms: 20,
-    context_length: 2048,
-    generated_length: 256,
-    batch_size: 1,
-  });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.hardware_id || !formData.model_id) {
+    if (!formInput.hardware_id || !formInput.model_id) {
       toast.error(tt("pleaseSelectHardwareModel", "Please select hardware and model"));
       return;
     }
 
-    const selectedHardware = hardware.find((h) => h.id === formData.hardware_id);
-    const selectedModel = models.find((m) => m.id === formData.model_id);
+    const selectedHardware = hardware.find((h) => h.id === formInput.hardware_id);
+    const selectedModel = models.find((m) => m.id === formInput.model_id);
 
     if (!selectedHardware || !selectedModel) {
       toast.error(tt("invalidSelection", "Invalid hardware or model selection"));
@@ -80,17 +66,17 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
       if (useApi) {
         // Use API for calculation
         const response = await apiClient.calculateMFU({
-          hardware_id: Number(formData.hardware_id),
-          model_id: Number(formData.model_id),
-          gpu_count: formData.gpu_count,
-          precision: toApiPrecision(formData.precision),
-          attention_precision: toApiPrecision(formData.attention_precision),
-          ffn_precision: toApiPrecision(formData.ffn_precision),
-          first_token_latency_ms: formData.first_token_latency_ms,
-          tpot_ms: formData.tpot_ms,
-          context_length: formData.context_length,
-          generated_length: formData.generated_length,
-          batch_size: formData.batch_size,
+          hardware_id: Number(formInput.hardware_id),
+          model_id: Number(formInput.model_id),
+          gpu_count: formInput.gpu_count,
+          precision: toApiPrecision(formInput.precision),
+          attention_precision: toApiPrecision(formInput.attention_precision),
+          ffn_precision: toApiPrecision(formInput.ffn_precision),
+          first_token_latency_ms: formInput.first_token_latency_ms,
+          tpot_ms: formInput.tpot_ms,
+          context_length: formInput.context_length,
+          generated_length: formInput.generated_length,
+          batch_size: formInput.batch_size,
         });
 
         if (!response.success || !response.result) {
@@ -100,7 +86,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
         // Convert API response to frontend format
         const result = {
           id: generateUUID(),
-          input: formData,
+          input: formInput,
           hardware: selectedHardware,
           model: selectedModel,
           mfu: response.result.mfu,
@@ -119,7 +105,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
       } else {
         // Use local calculation
         await new Promise((resolve) => setTimeout(resolve, 500));
-        const result = calculateMFU(formData, selectedHardware, selectedModel);
+        const result = calculateMFU(formInput, selectedHardware, selectedModel);
         addResult(result);
       }
 
@@ -151,9 +137,9 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                 {tt("model", "Model")}
               </Label>
               <Select
-                value={formData.model_id}
+                value={formInput.model_id}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, model_id: value })
+                  setFormInput({ ...formInput, model_id: value })
                 }
               >
                 <SelectTrigger id="model">
@@ -176,9 +162,9 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                 {tt("hardware", "Hardware")}
               </Label>
               <Select
-                value={formData.hardware_id}
+                value={formInput.hardware_id}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, hardware_id: value })
+                  setFormInput({ ...formInput, hardware_id: value })
                 }
               >
                 <SelectTrigger id="hardware">
@@ -201,9 +187,9 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                 {tt("gpuCount", "GPU Count")}
               </Label>
               <Select
-                value={String(formData.gpu_count)}
+                value={String(formInput.gpu_count)}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, gpu_count: Number(value) })
+                  setFormInput({ ...formInput, gpu_count: Number(value) })
                 }
               >
                 <SelectTrigger id="gpu_count">
@@ -237,10 +223,10 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                   id="first_token"
                   type="number"
                   min={1}
-                  value={formData.first_token_latency_ms}
+                  value={formInput.first_token_latency_ms}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormInput({
+                      ...formInput,
                       first_token_latency_ms: Number(e.target.value),
                     })
                   }
@@ -254,10 +240,10 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                   id="tpot"
                   type="number"
                   min={1}
-                  value={formData.tpot_ms}
+                  value={formInput.tpot_ms}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormInput({
+                      ...formInput,
                       tpot_ms: Number(e.target.value),
                     })
                   }
@@ -283,10 +269,10 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                   id="context_length"
                   type="number"
                   min={1}
-                  value={formData.context_length}
+                  value={formInput.context_length}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormInput({
+                      ...formInput,
                       context_length: Number(e.target.value),
                     })
                   }
@@ -300,10 +286,10 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                   id="generated_length"
                   type="number"
                   min={1}
-                  value={formData.generated_length}
+                  value={formInput.generated_length}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
+                    setFormInput({
+                      ...formInput,
                       generated_length: Number(e.target.value),
                     })
                   }
@@ -319,10 +305,10 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                 id="batch_size"
                 type="number"
                 min={1}
-                value={formData.batch_size}
+                value={formInput.batch_size}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
+                  setFormInput({
+                    ...formInput,
                     batch_size: Number(e.target.value),
                   })
                 }
@@ -341,9 +327,9 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                   {tt("attentionPrecision", "Attention Precision")}
                 </Label>
                 <Select
-                  value={formData.attention_precision}
+                  value={formInput.attention_precision}
                   onValueChange={(value: Precision) =>
-                    setFormData({ ...formData, attention_precision: value })
+                    setFormInput({ ...formInput, attention_precision: value })
                   }
                 >
                   <SelectTrigger>
@@ -363,9 +349,9 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
                   {tt("ffnPrecision", "FFN Precision")}
                 </Label>
                 <Select
-                  value={formData.ffn_precision}
+                  value={formInput.ffn_precision}
                   onValueChange={(value: Precision) =>
-                    setFormData({ ...formData, ffn_precision: value })
+                    setFormInput({ ...formInput, ffn_precision: value })
                   }
                 >
                   <SelectTrigger>
