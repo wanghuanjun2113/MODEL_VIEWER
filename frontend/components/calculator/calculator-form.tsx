@@ -7,6 +7,7 @@ import { useMFUStore } from "@/lib/store";
 import { calculateMFU } from "@/lib/calculator";
 import { apiClient } from "@/lib/api";
 import { useLanguageStore } from "@/lib/i18n";
+import { generateUUID } from "@/lib/utils";
 import type { CalculationInput, Precision, GPU_COUNT_OPTIONS } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,7 +99,7 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
 
         // Convert API response to frontend format
         const result = {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           input: formData,
           hardware: selectedHardware,
           model: selectedModel,

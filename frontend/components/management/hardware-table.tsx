@@ -5,6 +5,7 @@ import React from "react"
 import { useState } from "react";
 import { useMFUStore } from "@/lib/store";
 import { useLanguageStore } from "@/lib/i18n";
+import { generateUUID } from "@/lib/utils";
 import type { Hardware, HardwareFormData } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,7 +131,7 @@ export function HardwareTable() {
         const items: Hardware[] = lines.slice(1).map((line) => {
           const values = line.split(",");
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             name: values[0]?.trim() || "",
             fp16_peak_tflops: parseFloat(values[1]) || 0,
             bf16_peak_tflops: parseFloat(values[2]) || 0,

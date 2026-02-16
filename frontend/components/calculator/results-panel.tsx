@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react"
+import React, { useState, useEffect } from "react"
 
 import { useMFUStore } from "@/lib/store";
-import { useLanguageStore } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -17,29 +17,54 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Default English translations for SSR
+const defaultTranslations: Record<string, string> = {
+  mfu: "MFU",
+  memoryBandwidthUtilization: "Memory Bandwidth Utilization",
+  bottleneck: "Bottleneck",
+  computeLimited: "Compute Limited",
+  memoryLimited: "Memory Limited",
+  balanced: "Balanced",
+  actualFlops: "Actual FLOPS",
+  theoreticalFlops: "Theoretical FLOPS",
+  optimizationSuggestions: "Optimization Suggestions",
+  runCalculationToSeeDetails: "Run a calculation to see optimization suggestions.",
+  statusGood: "Good",
+  statusWarning: "Warning",
+  statusLow: "Low",
+};
+
 export function ResultsPanel() {
   const { results } = useMFUStore();
-  const { t } = useLanguageStore();
+  const { t, isHydrated } = useLanguage();
   const latestResult = results[0];
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use translations only after mounted, otherwise use default English
+  const tt = mounted && isHydrated ? t : ((key: string) => defaultTranslations[key] || key);
 
   if (!latestResult) {
     return (
       <div className="space-y-4">
         <MetricCard
-          title={t("mfu")}
+          title={tt("mfu")}
           icon={<Activity className="h-5 w-5" />}
           value="--"
           unit="%"
-          description={t("mfu")}
+          description={tt("mfu")}
         />
         <MetricCard
-          title={t("memoryBandwidthUtilization")}
+          title={tt("memoryBandwidthUtilization")}
           icon={<HardDrive className="h-5 w-5" />}
           value="--"
           unit="%"
-          description={t("memoryBandwidthUtilization")}
+          description={tt("memoryBandwidthUtilization")}
         />
-        <SuggestionsCard suggestions={[]} />
+        <SuggestionsCard tt={tt} suggestions={[]} />
       </div>
     );
   }
@@ -50,20 +75,20 @@ export function ResultsPanel() {
   return (
     <div className="space-y-4">
       <MetricCard
-        title={t("mfu")}
+        title={tt("mfu")}
         icon={<Activity className="h-5 w-5" />}
         value={latestResult.mfu.toFixed(2)}
         unit="%"
-        description={t("mfu")}
+        description={tt("mfu")}
         progress={latestResult.mfu}
         status={mfuStatus}
       />
       <MetricCard
-        title={t("memoryBandwidthUtilization")}
+        title={tt("memoryBandwidthUtilization")}
         icon={<HardDrive className="h-5 w-5" />}
         value={latestResult.memory_bandwidth_utilization.toFixed(2)}
         unit="%"
-        description={t("memoryBandwidthUtilization")}
+        description={tt("memoryBandwidthUtilization")}
         progress={latestResult.memory_bandwidth_utilization}
         status={bandwidthStatus}
       />
@@ -72,12 +97,12 @@ export function ResultsPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Zap className="h-4 w-4 text-primary" />
-            {t("bottleneck")}
+            {tt("bottleneck")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">{t("bottleneck")}</span>
+            <span className="text-sm text-muted-foreground">{tt("bottleneck")}</span>
             <Badge
               variant={
                 latestResult.bottleneck_type === "compute"
@@ -88,20 +113,20 @@ export function ResultsPanel() {
               }
             >
               {latestResult.bottleneck_type === "compute"
-                ? t("computeLimited")
+                ? tt("computeLimited")
                 : latestResult.bottleneck_type === "memory"
-                ? t("memoryLimited")
-                : t("balanced")}
+                ? tt("memoryLimited")
+                : tt("balanced")}
             </Badge>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">{t("actualFlops")}</span>
+            <span className="text-sm text-muted-foreground">{tt("actualFlops")}</span>
             <span className="font-mono text-sm">
               {latestResult.actual_flops.toFixed(2)} TFLOPS
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">{t("theoreticalFlops")}</span>
+            <span className="text-sm text-muted-foreground">{tt("theoreticalFlops")}</span>
             <span className="font-mono text-sm">
               {latestResult.theoretical_flops.toFixed(2)} TFLOPS
             </span>
@@ -115,7 +140,7 @@ export function ResultsPanel() {
         </CardContent>
       </Card>
 
-      <SuggestionsCard suggestions={latestResult.optimization_suggestions} />
+      <SuggestionsCard tt={tt} suggestions={latestResult.optimization_suggestions} />
     </div>
   );
 }
@@ -175,7 +200,15 @@ function MetricCard({
 }
 
 function StatusIndicator({ status }: { status: "good" | "warning" | "critical" }) {
-  const { t } = useLanguageStore();
+  const { t, isHydrated } = useLanguage();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const tt = mounted && isHydrated ? t : ((key: string) => defaultTranslations[key] || key);
+
   return (
     <div
       className={cn(
@@ -190,25 +223,24 @@ function StatusIndicator({ status }: { status: "good" | "warning" | "critical" }
       ) : (
         <AlertCircle className="h-3 w-3" />
       )}
-      {status === "good" ? "Good" : status === "warning" ? "Warning" : "Low"}
+      {tt("statusGood")}
     </div>
   );
 }
 
-function SuggestionsCard({ suggestions }: { suggestions: string[] }) {
-  const { t } = useLanguageStore();
+function SuggestionsCard({ suggestions, tt }: { suggestions: string[]; tt: (key: string) => string }) {
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <Lightbulb className="h-4 w-4 text-warning" />
-          {t("optimizationSuggestions")}
+          {tt("optimizationSuggestions")}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {suggestions.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Run a calculation to see optimization suggestions.
+            {tt("runCalculationToSeeDetails")}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -218,7 +250,7 @@ function SuggestionsCard({ suggestions }: { suggestions: string[] }) {
                 className="flex items-start gap-2 text-sm text-muted-foreground"
               >
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                {t(suggestionKey as any)}
+                {tt(suggestionKey)}
               </li>
             ))}
           </ul>

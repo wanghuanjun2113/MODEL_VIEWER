@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useEffect, useState, useMemo } from "react";
 
 export type Language = "en" | "zh";
 
@@ -88,7 +89,7 @@ export const translations = {
     deleteHardwareConfirm: "Are you sure you want to delete this hardware? This action cannot be undone.",
     name: "Name",
     fp16PeakTflops: "FP16 Peak (TFLOPS)",
-    bf16PeakTflops: "BF16 Peak (TFLOPS)",
+    bf16PeakTflops: "BF32 Peak (TFLOPS)",
     int8PeakTops: "INT8 Peak (TOPS)",
     memorySize: "Memory Size (GB)",
     memoryBandwidth: "Memory Bandwidth (TB/s)",
@@ -173,6 +174,11 @@ export const translations = {
     hardwareInfo: "Hardware Info",
     hardwareInfoTip: "Total GPU memory available for model loading",
     totalMemory: "Total Memory",
+
+    // Status indicators
+    statusGood: "Good",
+    statusWarning: "Warning",
+    statusLow: "Low",
   },
   zh: {
     // Page title
@@ -258,7 +264,7 @@ export const translations = {
     deleteHardwareConfirm: "确定要删除此硬件吗？此操作无法撤销。",
     name: "名称",
     fp16PeakTflops: "FP16 峰值 (TFLOPS)",
-    bf16PeakTflops: "BF16 峰值 (TFLOPS)",
+    bf16PeakTflops: "BF32 峰值 (TFLOPS)",
     int8PeakTops: "INT8 峰值 (TOPS)",
     memorySize: "显存大小 (GB)",
     memoryBandwidth: "显存带宽 (TB/s)",
@@ -343,6 +349,11 @@ export const translations = {
     hardwareInfo: "硬件信息",
     hardwareInfoTip: "可用于模型加载的 GPU 显存总量",
     totalMemory: "总显存",
+
+    // Status indicators
+    statusGood: "良好",
+    statusWarning: "警告",
+    statusLow: "过低",
   },
 } as const;
 
@@ -354,10 +365,36 @@ interface LanguageStore {
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }
 
+// Detect if we're on the client side
+const isClient = typeof window !== "undefined";
+
+// Get initial language from localStorage or use default
+function getInitialLanguage(): Language {
+  if (!isClient) return "en";
+  try {
+    const stored = localStorage.getItem("language-storage");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.state && parsed.state.language) {
+        return parsed.state.language;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return "en";
+}
+
+// Direct translation function that doesn't depend on store
+function translate(key: TranslationKey, language: Language): string {
+  const translationSet = translations[language] || translations.en;
+  return (translationSet as Record<string, string>)[key] || key;
+}
+
 export const useLanguageStore = create<LanguageStore>()(
   persist(
     (set, get) => ({
-      language: "en",
+      language: isClient ? getInitialLanguage() : "en",
       setLanguage: (language) => set({ language }),
       t: (key: TranslationKey, params?: Record<string, string | number>): string => {
         const { language } = get();
@@ -373,7 +410,53 @@ export const useLanguageStore = create<LanguageStore>()(
     }),
     {
       name: "language-storage",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => (isClient ? localStorage : {})),
     }
   )
 );
+
+// Hook to detect if component has mounted (for hydration safety)
+export function useHasMounted(): boolean {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  return mounted;
+}
+
+// Hook for language with hydration safety - returns placeholder during SSR
+export function useLanguage(): {
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  isHydrated: boolean;
+} {
+  const store = useLanguageStore();
+  const mounted = useHasMounted();
+
+  const t = useMemo(() => {
+    if (!mounted) {
+      // During SSR, return a function that returns the key itself
+      return (key: TranslationKey) => key;
+    }
+    return store.t;
+  }, [store.t, mounted]);
+
+  return {
+    language: store.language,
+    setLanguage: store.setLanguage,
+    t,
+    isHydrated: mounted,
+  };
+}
+
+// Safe translation hook - returns translated text only after hydration
+export function useTranslation(key: TranslationKey): string {
+  const { t, isHydrated } = useLanguage();
+  return t(key);
+}
+
+// Get translation by key and language (static, doesn't cause re-renders)
+export function getTranslation(key: TranslationKey, language: Language): string {
+  return translate(key, language);
+}

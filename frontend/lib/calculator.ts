@@ -6,6 +6,7 @@ import type {
   Precision,
   BottleneckType,
 } from "./types";
+import { generateUUID } from "./utils";
 
 // Get peak TFLOPS based on precision
 function getPeakTflops(hardware: Hardware, precision: Precision): number {
@@ -258,7 +259,7 @@ export function calculateMFU(
   );
 
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     input,
     hardware,
     model,
