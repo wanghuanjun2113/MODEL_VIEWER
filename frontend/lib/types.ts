@@ -25,6 +25,18 @@ export interface Model {
   intermediate_size: number;
   head_dim: number;
   max_position_embeddings: number;
+  // Hybrid attention fields (for models like Qwen3.5)
+  is_hybrid_attention?: boolean;
+  full_attention_interval?: number;  // Every N layers is full attention
+  num_full_attention_layers?: number;
+  num_linear_attention_layers?: number;
+  // Linear attention config
+  linear_num_key_heads?: number;
+  linear_num_value_heads?: number;
+  linear_key_head_dim?: number;
+  linear_value_head_dim?: number;
+  linear_conv_kernel_dim?: number;  // Convolution kernel dimension for linear attention
+  layer_types?: string[];  // Array of "full_attention" or "linear_attention"
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +103,17 @@ export interface ModelFormData {
   intermediate_size: number;
   head_dim: number;
   max_position_embeddings: number;
+  // Hybrid attention fields
+  is_hybrid_attention?: boolean;
+  full_attention_interval?: number;
+  num_full_attention_layers?: number;
+  num_linear_attention_layers?: number;
+  linear_num_key_heads?: number;
+  linear_num_value_heads?: number;
+  linear_key_head_dim?: number;
+  linear_value_head_dim?: number;
+  linear_conv_kernel_dim?: number;
+  layer_types?: string[];
 }
 
 // Concurrency calculator types

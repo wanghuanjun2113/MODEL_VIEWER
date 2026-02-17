@@ -202,6 +202,43 @@ export const translations = {
     perTokenKvCache: "Per-Token KVCache",
     perSeqKvCache: "Per-Sequence KVCache",
 
+    // Hybrid attention
+    hybridAttention: "Hybrid Attention",
+    hybridAttentionDesc: "This model uses a mix of Full Attention and Linear Attention layers.",
+    fullAttentionLayers: "Full Attention Layers",
+    linearAttentionLayers: "Linear Attention Layers",
+    fullAttnInterval: "Full Attention Interval",
+    linearKeyHeads: "Linear Key Heads",
+    linearValueHeads: "Linear Value Heads",
+    linearKeyDim: "Linear Key Head Dim",
+    linearValueDim: "Linear Value Head Dim",
+    linearConvKernelDim: "Linear Conv Kernel Dim",
+    hybridAttentionConfig: "Hybrid Attention Config",
+
+    // MFU Formula dialog
+    mfuFormulas: "MFU Calculation Formulas",
+    prefillPhase: "Prefill Phase",
+    decodePhase: "Decode Phase",
+    timeBreakdown: "Time Breakdown",
+    flopsBreakdown: "FLOPs Breakdown",
+    totalFlops: "Total FLOPs",
+    totalTime: "Total Time",
+    peakTflops: "Peak TFLOPS",
+    actualTflops: "Actual TFLOPS",
+    firstTokenLatency: "First Token Latency",
+    tpot: "TPOT",
+    attentionPrecision: "Attention Precision",
+    ffnPrecision: "FFN Precision",
+
+    // Bandwidth Formula dialog
+    bandwidthFormulas: "Memory Bandwidth Utilization Formulas",
+    modelSize: "Model Size",
+    kvCacheSize: "KV Cache Size",
+    memoryPerToken: "Memory Per Token",
+    requiredBandwidth: "Required Bandwidth",
+    hardwareBandwidth: "Hardware Bandwidth",
+    bandwidthUtilization: "Bandwidth Utilization",
+
     // Status indicators
     statusGood: "Good",
     statusWarning: "Warning",
@@ -403,6 +440,43 @@ export const translations = {
     calculationResult: "计算结果",
     perTokenKvCache: "单Token KVCache",
     perSeqKvCache: "单序列 KVCache",
+
+    // Hybrid attention
+    hybridAttention: "混合注意力",
+    hybridAttentionDesc: "此模型使用全注意力和线性注意力混合层。",
+    fullAttentionLayers: "全注意力层数",
+    linearAttentionLayers: "线性注意力层数",
+    fullAttnInterval: "全注意力层间隔",
+    linearKeyHeads: "线性 Key 头数",
+    linearValueHeads: "线性 Value 头数",
+    linearKeyDim: "线性 Key 头维度",
+    linearValueDim: "线性 Value 头维度",
+    linearConvKernelDim: "线性卷积核维度",
+    hybridAttentionConfig: "混合注意力配置",
+
+    // MFU Formula dialog
+    mfuFormulas: "MFU 计算公式",
+    prefillPhase: "Prefill 阶段",
+    decodePhase: "Decode 阶段",
+    timeBreakdown: "时间分解",
+    flopsBreakdown: "FLOPs 分解",
+    totalFlops: "总 FLOPs",
+    totalTime: "总时间",
+    peakTflops: "峰值 TFLOPS",
+    actualTflops: "实际 TFLOPS",
+    firstTokenLatency: "首 Token 延迟",
+    tpot: "TPOT",
+    attentionPrecision: "Attention 精度",
+    ffnPrecision: "FFN 精度",
+
+    // Bandwidth Formula dialog
+    bandwidthFormulas: "显存带宽使用率公式",
+    modelSize: "模型大小",
+    kvCacheSize: "KV Cache 大小",
+    memoryPerToken: "每Token显存",
+    requiredBandwidth: "需求带宽",
+    hardwareBandwidth: "硬件带宽",
+    bandwidthUtilization: "带宽使用率",
 
     // Status indicators
     statusGood: "良好",

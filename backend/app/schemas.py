@@ -140,6 +140,20 @@ class HuggingFacePreviewResponse(BaseModel):
     head_dim: int
     max_position_embeddings: int
     model_type: str
+    is_moe: bool = Field(default=False, description="是否为 MoE 模型")
+    num_experts: int = Field(default=0, description="MoE 专家数量")
+    num_experts_per_tok: int = Field(default=0, description="每个 token 激活的专家数")
+    # Hybrid attention fields (for models like Qwen3.5)
+    is_hybrid_attention: bool = Field(default=False, description="是否为混合注意力模型")
+    full_attention_interval: int = Field(default=0, description="全注意力层间隔")
+    num_full_attention_layers: int = Field(default=0, description="全注意力层数量")
+    num_linear_attention_layers: int = Field(default=0, description="线性注意力层数量")
+    linear_num_key_heads: int = Field(default=0, description="线性注意力 Key 头数")
+    linear_num_value_heads: int = Field(default=0, description="线性注意力 Value 头数")
+    linear_key_head_dim: int = Field(default=0, description="线性注意力 Key 头维度")
+    linear_value_head_dim: int = Field(default=0, description="线性注意力 Value 头维度")
+    linear_conv_kernel_dim: int = Field(default=0, description="线性注意力卷积核维度")
+    layer_types: List[str] = Field(default=[], description="每层类型列表")
     message: str = "Preview retrieved successfully"
 
 

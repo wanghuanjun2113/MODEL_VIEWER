@@ -26,36 +26,60 @@ export function ComparisonTable() {
       return;
     }
 
-    const exportData = results.map((r) => ({
-      timestamp: r.timestamp,
-      hardware: r.hardware.name,
-      model: r.model.name,
-      precision: r.input.precision,
-      context_length: r.input.context_length,
-      generated_length: r.input.generated_length,
-      batch_size: r.input.batch_size,
-      first_token_latency_ms: r.input.first_token_latency_ms,
-      tpot_ms: r.input.tpot_ms,
-      mfu: r.mfu,
-      memory_bandwidth_utilization: r.memory_bandwidth_utilization,
-      bottleneck_type: r.bottleneck_type,
-      actual_tflops: r.actual_flops,
-      theoretical_tflops: r.theoretical_flops,
-      kv_cache_size_gb: r.kv_cache_size_gb,
-    }));
+    // CSV headers
+    const headers = [
+      "Timestamp",
+      "Hardware",
+      "Model",
+      "Precision",
+      "Context Length",
+      "Generated Length",
+      "Batch Size",
+      "First Token Latency (ms)",
+      "TPOT (ms)",
+      "MFU (%)",
+      "Memory Bandwidth Utilization (%)",
+      "Bottleneck Type",
+      "Actual TFLOPS",
+      "Theoretical TFLOPS",
+      "KV Cache Size (GB)",
+    ];
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
-    });
+    // CSV rows
+    const rows = results.map((r) => [
+      r.timestamp,
+      r.hardware.name,
+      r.model.name,
+      r.input.precision,
+      r.input.context_length,
+      r.input.generated_length,
+      r.input.batch_size,
+      r.input.first_token_latency_ms,
+      r.input.tpot_ms,
+      r.mfu,
+      r.memory_bandwidth_utilization,
+      r.bottleneck_type,
+      r.actual_flops,
+      r.theoretical_flops,
+      r.kv_cache_size_gb,
+    ]);
+
+    // Build CSV content
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `mfu-results-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `mfu-results-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success("Results exported");
+    toast.success("Results exported to CSV");
   };
 
   if (results.length === 0) {

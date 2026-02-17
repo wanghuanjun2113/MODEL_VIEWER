@@ -31,14 +31,63 @@ function calculatePerTokenKVCacheMemory(
   precision: Precision
 ): number {
   const bytesPerElement = getBytesPerElement(precision);
-  // KV cache per token = 2 * num_layers * num_attention_heads * head_dim * precision_bytes
+
+  // Check if this is a hybrid attention model (like Qwen3.5)
+  if (model.is_hybrid_attention && model.num_full_attention_layers !== undefined) {
+    // For hybrid models, only full attention layers have per-token KV cache
+    // Linear attention layers use fixed-size state (not dependent on sequence length)
+    const numFullAttnLayers = model.num_full_attention_layers;
+    const numKvHeads = model.num_key_value_heads;
+    const headDim = model.head_dim;
+
+    const fullAttnPerTokenMemory =
+      2 * numFullAttnLayers * numKvHeads * headDim * bytesPerElement;
+
+    return fullAttnPerTokenMemory / (1024 * 1024 * 1024); // Convert to GB
+  }
+
+  // Standard model: KV cache per token = 2 * num_layers * num_kv_heads * head_dim * precision_bytes
   const perTokenMemory =
     2 *
     model.num_layers *
-    model.num_attention_heads *
+    model.num_key_value_heads *
     model.head_dim *
     bytesPerElement;
   return perTokenMemory / (1024 * 1024 * 1024); // Convert to GB
+}
+
+// Calculate fixed KV cache state for linear attention layers (in GB)
+// This is a fixed overhead per request, not dependent on sequence length
+function calculateLinearAttentionStateMemory(
+  model: Model,
+  precision: Precision
+): number {
+  // Only hybrid models have linear attention
+  if (!model.is_hybrid_attention || !model.num_linear_attention_layers) {
+    return 0;
+  }
+
+  const bytesPerElement = getBytesPerElement(precision);
+  const numLinearLayers = model.num_linear_attention_layers;
+
+  // Linear attention state consists of:
+  // 1. Recurrent state (K^T * V accumulator): linear_num_key_heads * linear_key_head_dim * linear_value_head_dim
+  // 2. Convolution buffer for keys: linear_num_key_heads * linear_key_head_dim * linear_conv_kernel_dim
+  const linearKeyHeads = model.linear_num_key_heads || 0;
+  const linearKeyHeadDim = model.linear_key_head_dim || 0;
+  const linearValueHeads = model.linear_num_value_heads || 0;
+  const linearValueHeadDim = model.linear_value_head_dim || 0;
+  const linearConvKernelDim = model.linear_conv_kernel_dim || 1;  // Default to 1 if not specified
+
+  // Recurrent state (K^T * V accumulator)
+  const recurrentStateSize = linearKeyHeads * linearKeyHeadDim * linearValueHeadDim;
+  // Convolution buffer for keys
+  const convBufferSize = linearKeyHeads * linearKeyHeadDim * linearConvKernelDim;
+
+  const stateSizePerLayer = recurrentStateSize + convBufferSize;
+  const totalStateSize = stateSizePerLayer * numLinearLayers * bytesPerElement;
+
+  return totalStateSize / (1024 * 1024 * 1024); // Convert to GB
 }
 
 // Calculate per-request activation memory in GB (single token context)
@@ -74,11 +123,16 @@ export function calculateMaxConcurrency(
     totalMemory - weightMemory - frameworkOverhead - activationReserve
   );
 
-  // Per-token KV cache memory
+  // Per-token KV cache memory (for full attention layers in hybrid models)
   const perTokenKVCache = calculatePerTokenKVCacheMemory(model, input.attention_precision);
 
+  // Fixed linear attention state memory per request (not dependent on sequence length)
+  const linearAttentionState = calculateLinearAttentionStateMemory(model, input.attention_precision);
+
   // Per-request KV cache memory for full context
-  const perRequestKVCache = perTokenKVCache * input.context_length;
+  // For hybrid models: perTokenKVCache is only for full attention layers
+  // Linear attention state is added as fixed overhead
+  const perRequestKVCache = perTokenKVCache * input.context_length + linearAttentionState;
 
   // Per-request activation memory (for prefill)
   const perRequestActivation = calculatePerRequestActivationMemory(

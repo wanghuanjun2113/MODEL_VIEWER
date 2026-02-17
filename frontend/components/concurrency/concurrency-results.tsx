@@ -387,8 +387,33 @@ function KvCacheFormulaDialog({
   const numKvHeads = model.num_key_value_heads;
   const headDim = model.head_dim;
 
+  // Check if this is a hybrid attention model
+  const isHybrid = model.is_hybrid_attention;
+  const numFullAttnLayers = model.num_full_attention_layers || 0;
+  const numLinearAttnLayers = model.num_linear_attention_layers || 0;
+  const linearKeyHeads = model.linear_num_key_heads || 0;
+  const linearValueHeads = model.linear_num_value_heads || 0;
+  const linearKeyHeadDim = model.linear_key_head_dim || 0;
+  const linearValueHeadDim = model.linear_value_head_dim || 0;
+  const linearConvKernelDim = model.linear_conv_kernel_dim || 1;
+
   // Determine attention type
   const getAttentionType = (): { type: string; formula: string; example: string } => {
+    // Hybrid attention model (like Qwen3.5)
+    if (isHybrid && numFullAttnLayers > 0) {
+      // Linear attention state size (fixed, not dependent on seq_len)
+      // Recurrent state: linearKeyHeads * linearKeyHeadDim * linearValueHeadDim
+      // Conv buffer: linearKeyHeads * linearKeyHeadDim * linearConvKernelDim
+      const recurrentState = linearKeyHeads * linearKeyHeadDim * linearValueHeadDim;
+      const convBuffer = linearKeyHeads * linearKeyHeadDim * linearConvKernelDim;
+      const linearStateSize = recurrentState + convBuffer;
+      return {
+        type: "Hybrid Attention (Full + Linear)",
+        formula: `KV = 2 × L_full × H_kv × d × seq × bytes + L_linear × (K×V_state + conv_buffer) × bytes`,
+        example: `= 2 × ${numFullAttnLayers} × ${numKvHeads} × ${headDim} × ${contextLength} × ${bytesPerElement} + ${numLinearAttnLayers} × (${linearKeyHeads}×${linearKeyHeadDim}×${linearValueHeadDim} + ${linearKeyHeads}×${linearKeyHeadDim}×${linearConvKernelDim}) × ${bytesPerElement}`,
+      };
+    }
+
     if (numKvHeads === numHeads) {
       // MHA - standard multi-head attention
       return {
@@ -416,9 +441,28 @@ function KvCacheFormulaDialog({
   const attentionInfo = getAttentionType();
 
   // Calculate the expected value
-  const kvCachePerTokenBytes = 2 * numLayers * numKvHeads * headDim * bytesPerElement;
+  // For hybrid models: only full attention layers contribute to per-token cache
+  // Linear attention has fixed state size
+  let kvCachePerTokenBytes: number;
+  let linearStateBytes = 0;
+
+  if (isHybrid && numFullAttnLayers > 0) {
+    // Full attention per-token cache
+    kvCachePerTokenBytes = 2 * numFullAttnLayers * numKvHeads * headDim * bytesPerElement;
+    // Linear attention fixed state:
+    // - Recurrent state (K^T * V accumulator): linearKeyHeads * linearKeyHeadDim * linearValueHeadDim
+    // - Convolution buffer: linearKeyHeads * linearKeyHeadDim * linearConvKernelDim
+    const recurrentState = linearKeyHeads * linearKeyHeadDim * linearValueHeadDim;
+    const convBuffer = linearKeyHeads * linearKeyHeadDim * linearConvKernelDim;
+    linearStateBytes = numLinearAttnLayers * (recurrentState + convBuffer) * bytesPerElement;
+  } else {
+    kvCachePerTokenBytes = 2 * numLayers * numKvHeads * headDim * bytesPerElement;
+  }
+
   const kvCachePerTokenMB = kvCachePerTokenBytes / (1024 * 1024);
-  const kvCachePerSeqGB = (kvCachePerTokenBytes * contextLength) / (1024 * 1024 * 1024);
+  const linearStateMB = linearStateBytes / (1024 * 1024);
+  // Total KV cache includes both per-token cache and fixed linear state
+  const kvCachePerSeqGB = (kvCachePerTokenBytes * contextLength + linearStateBytes) / (1024 * 1024 * 1024);
 
   return (
     <Dialog>
@@ -427,7 +471,7 @@ function KvCacheFormulaDialog({
           <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="w-[50vw] max-w-[calc(100%-2rem)] sm:max-w-[50vw] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Database className="h-5 w-5 text-primary" />
@@ -461,45 +505,124 @@ function KvCacheFormulaDialog({
 
                 <div className="text-sm font-medium text-muted-foreground mt-3">{tt("parameters")}</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">L (layers)</span>
-                    <span className="font-mono">{numLayers}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">H (query heads)</span>
-                    <span className="font-mono">{numHeads}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">H_kv (kv heads)</span>
-                    <span className="font-mono">{numKvHeads}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">d (head_dim)</span>
-                    <span className="font-mono">{headDim}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">seq (context)</span>
-                    <span className="font-mono">{contextLength}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">bytes (precision)</span>
-                    <span className="font-mono">{bytesPerElement} ({precision})</span>
-                  </div>
+                  {isHybrid ? (
+                    <>
+                      {/* Hybrid attention parameters */}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">L_total (layers)</span>
+                        <span className="font-mono">{numLayers}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">L_full (full attn)</span>
+                        <span className="font-mono text-green-600">{numFullAttnLayers}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">L_linear (linear attn)</span>
+                        <span className="font-mono text-blue-600">{numLinearAttnLayers}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">H_kv (full attn kv heads)</span>
+                        <span className="font-mono">{numKvHeads}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">d (full attn head_dim)</span>
+                        <span className="font-mono">{headDim}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">seq (context)</span>
+                        <span className="font-mono">{contextLength}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">linear_K_heads</span>
+                        <span className="font-mono text-blue-600">{linearKeyHeads}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">linear_V_heads</span>
+                        <span className="font-mono text-blue-600">{linearValueHeads}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">linear_K_dim</span>
+                        <span className="font-mono text-blue-600">{linearKeyHeadDim}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">linear_V_dim</span>
+                        <span className="font-mono text-blue-600">{linearValueHeadDim}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">linear_conv_kernel</span>
+                        <span className="font-mono text-blue-600">{linearConvKernelDim}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">bytes (precision)</span>
+                        <span className="font-mono">{bytesPerElement} ({precision})</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Standard attention parameters */}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">L (layers)</span>
+                        <span className="font-mono">{numLayers}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">H (query heads)</span>
+                        <span className="font-mono">{numHeads}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">H_kv (kv heads)</span>
+                        <span className="font-mono">{numKvHeads}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">d (head_dim)</span>
+                        <span className="font-mono">{headDim}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">seq (context)</span>
+                        <span className="font-mono">{contextLength}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">bytes (precision)</span>
+                        <span className="font-mono">{bytesPerElement} ({precision})</span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <Separator className="my-3" />
 
                 <div className="text-sm font-medium text-muted-foreground">{tt("calculationResult")}</div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="bg-muted/50 p-2 rounded">
-                    <div className="text-xs text-muted-foreground mb-1">{tt("perTokenKvCache")}</div>
-                    <div className="font-mono font-semibold">{kvCachePerTokenMB.toFixed(4)} MB</div>
+                {isHybrid ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="bg-muted/50 p-2 rounded">
+                        <div className="text-xs text-muted-foreground mb-1">Full Attn KV/Token</div>
+                        <div className="font-mono font-semibold">{kvCachePerTokenMB.toFixed(4)} MB</div>
+                      </div>
+                      <div className="bg-blue-50 dark:bg-blue-950/30 p-2 rounded">
+                        <div className="text-xs text-muted-foreground mb-1">Linear State (Fixed)</div>
+                        <div className="font-mono font-semibold text-blue-600">{linearStateMB.toFixed(4)} MB</div>
+                      </div>
+                      <div className="bg-primary/10 p-2 rounded">
+                        <div className="text-xs text-muted-foreground mb-1">{tt("perSeqKvCache")}</div>
+                        <div className="font-mono font-semibold text-primary">{kvCachePerSeqGB.toFixed(4)} GB</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
+                      <strong>Note:</strong> Linear attention uses a fixed-size state that does not grow with sequence length.
+                    </div>
                   </div>
-                  <div className="bg-primary/10 p-2 rounded">
-                    <div className="text-xs text-muted-foreground mb-1">{tt("perSeqKvCache")}</div>
-                    <div className="font-mono font-semibold text-primary">{kvCachePerSeqGB.toFixed(4)} GB</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="bg-muted/50 p-2 rounded">
+                      <div className="text-xs text-muted-foreground mb-1">{tt("perTokenKvCache")}</div>
+                      <div className="font-mono font-semibold">{kvCachePerTokenMB.toFixed(4)} MB</div>
+                    </div>
+                    <div className="bg-primary/10 p-2 rounded">
+                      <div className="text-xs text-muted-foreground mb-1">{tt("perSeqKvCache")}</div>
+                      <div className="font-mono font-semibold text-primary">{kvCachePerSeqGB.toFixed(4)} GB</div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -530,7 +653,7 @@ function KvCacheFormulaDialog({
               <div className="border rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-primary text-sm">GQA (Grouped Query Attention)</span>
-                  {numKvHeads > 1 && numKvHeads < numHeads && (
+                  {!isHybrid && numKvHeads > 1 && numKvHeads < numHeads && (
                     <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">{tt("currentModel")}</span>
                   )}
                 </div>
@@ -578,9 +701,19 @@ function KvCacheFormulaDialog({
 
               {/* Hybrid */}
               <div className="border rounded-lg p-3 space-y-2">
-                <span className="font-medium text-primary text-sm">{tt("hybridModels")}</span>
-                <div className="text-xs text-muted-foreground">Jamba, DeepSeek-V3 (MoE+MLA)</div>
-                <div className="text-xs text-muted-foreground">{tt("hybridModelsNote")}</div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-primary text-sm">{tt("hybridModels")}</span>
+                  {isHybrid && (
+                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">{tt("currentModel")}</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">Qwen3.5, Jamba, DeepSeek-V3 (MoE+MLA)</div>
+                <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+                  KV = 2 × L_full × H_kv × d × seq × bytes + L_linear × (K×V_state + conv_buffer) × bytes
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {tt("hybridModelsNote")} Qwen3.5: 每4层有1个Full Attention层，3个Linear Attention层。Linear Attention使用固定大小的状态，不随序列长度增长。状态包含：K^T×V累加器 (K_heads × K_dim × V_dim) 和卷积缓冲区 (K_heads × K_dim × conv_kernel)。
+                </div>
               </div>
             </div>
           </div>

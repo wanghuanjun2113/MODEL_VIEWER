@@ -54,35 +54,58 @@ export function ConcurrencyComparisonTable() {
       return;
     }
 
-    const exportData = concurrencyResults.map((r) => ({
-      timestamp: r.timestamp,
-      hardware: r.hardware.name,
-      model: r.model.name,
-      gpu_count: r.gpu_count,
-      context_length: r.input.context_length,
-      attention_precision: r.input.attention_precision,
-      framework_overhead_gb: r.input.framework_overhead_gb,
-      gpu_utilization: r.input.gpu_utilization,
-      max_concurrency_without_pa: r.max_concurrency_without_pa,
-      max_concurrency_with_pa: r.max_concurrency_with_pa,
-      hardware_memory_gb: r.hardware_memory_gb,
-      available_memory_gb: r.available_memory_gb,
-      weight_memory_gb: r.memory_breakdown.weight_memory_gb,
-      kv_cache_memory_gb: r.memory_breakdown.kv_cache_memory_gb,
-    }));
+    // CSV headers
+    const headers = [
+      "Timestamp",
+      "Hardware",
+      "Model",
+      "GPU Count",
+      "Context Length",
+      "Precision",
+      "Framework Overhead (GB)",
+      "GPU Utilization",
+      "Max Concurrency (Without PA)",
+      "Max Concurrency (With PA)",
+      "Hardware Memory (GB)",
+      "Available Memory (GB)",
+      "Weight Memory (GB)",
+      "KV Cache Memory (GB)",
+    ];
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
-    });
+    // CSV rows
+    const rows = concurrencyResults.map((r) => [
+      r.timestamp,
+      r.hardware.name,
+      r.model.name,
+      r.gpu_count,
+      r.input.context_length,
+      r.input.attention_precision,
+      r.input.framework_overhead_gb,
+      r.input.gpu_utilization,
+      r.max_concurrency_without_pa,
+      r.max_concurrency_with_pa,
+      r.hardware_memory_gb,
+      r.available_memory_gb,
+      r.memory_breakdown.weight_memory_gb,
+      r.memory_breakdown.kv_cache_memory_gb,
+    ]);
+
+    // Build CSV content
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `concurrency-results-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `concurrency-results-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success("Results exported");
+    toast.success("Results exported to CSV");
   };
 
   if (concurrencyResults.length === 0) {

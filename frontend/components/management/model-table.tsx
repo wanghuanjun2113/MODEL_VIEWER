@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMFUStore } from "@/lib/store";
-import { useLanguageStore } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n";
 import type { Model, ModelFormData } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,51 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+// Default English translations for SSR
+const defaultTranslations: Record<string, string> = {
+  nameRequired: "Name is required",
+  modelAdded: "Model added",
+  modelUpdated: "Model updated",
+  modelDeleted: "Model deleted",
+  hfIdRequired: "Please enter a Hugging Face model ID",
+  fetchConfigSuccess: "Model config fetched successfully",
+  fetchConfigFailed: "Failed to fetch model config from Hugging Face",
+  addModel: "Add Model",
+  modelConfigDesc: "Manage model specifications. You can fetch model configurations directly from Hugging Face or enter them manually.",
+  importFromHf: "Import from Hugging Face",
+  manualEntry: "Manual Entry",
+  preview: "Preview",
+  reviewBeforeSaving: "Review and edit before saving",
+  cancel: "Cancel",
+  name: "Name",
+  huggingfaceId: "Hugging Face ID",
+  paramsBillions: "Parameters (Billion)",
+  numLayers: "Layers",
+  hiddenSize: "Hidden Size",
+  numAttentionHeads: "Attention Heads",
+  numKeyValueHeads: "KV Heads",
+  actions: "Actions",
+  editModel: "Edit Model",
+  editModelDesc: "Update model configuration.",
+  save: "Save",
+  delete: "Delete",
+  vocabSize: "Vocab Size",
+  intermediateSize: "Intermediate Size",
+  headDim: "Head Dim",
+  maxPositionEmbeddings: "Max Position Embeddings",
+  // Hybrid attention translations
+  hybridAttention: "Hybrid Attention",
+  hybridAttentionDesc: "This model uses a mix of Full Attention and Linear Attention layers.",
+  fullAttentionLayers: "Full Attention Layers",
+  linearAttentionLayers: "Linear Attention Layers",
+  fullAttnInterval: "Full Attention Interval",
+  linearKeyHeads: "Linear Key Heads",
+  linearValueHeads: "Linear Value Heads",
+  linearKeyDim: "Linear Key Head Dim",
+  linearValueDim: "Linear Value Head Dim",
+  hybridAttentionConfig: "Hybrid Attention Config",
+};
+
 const emptyFormData: ModelFormData = {
   name: "",
   huggingface_id: "",
@@ -52,11 +97,23 @@ const emptyFormData: ModelFormData = {
   intermediate_size: 0,
   head_dim: 0,
   max_position_embeddings: 0,
+  // Hybrid attention fields
+  is_hybrid_attention: false,
+  full_attention_interval: 0,
+  num_full_attention_layers: 0,
+  num_linear_attention_layers: 0,
+  linear_num_key_heads: 0,
+  linear_num_value_heads: 0,
+  linear_key_head_dim: 0,
+  linear_value_head_dim: 0,
+  linear_conv_kernel_dim: 0,
+  layer_types: [],
 };
 
 export function ModelTable() {
   const { models, addModel, updateModel, deleteModel } = useMFUStore();
-  const { t } = useLanguageStore();
+  const { t, isHydrated } = useLanguage();
+  const [mounted, setMounted] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<Model | null>(null);
   const [formData, setFormData] = useState<ModelFormData>(emptyFormData);
@@ -64,9 +121,27 @@ export function ModelTable() {
   const [isFetching, setIsFetching] = useState(false);
   const [previewData, setPreviewData] = useState<ModelFormData | null>(null);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use translations only after mounted, otherwise use default English
+  const tt = (key: string, params?: Record<string, string | number>): string => {
+    if (mounted && isHydrated) {
+      return t(key as any, params);
+    }
+    let text = defaultTranslations[key] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
+
   const handleAdd = () => {
     if (!formData.name) {
-      toast.error(t("nameRequired"));
+      toast.error(tt("nameRequired"));
       return;
     }
     addModel(formData);
@@ -74,28 +149,28 @@ export function ModelTable() {
     setPreviewData(null);
     setHfId("");
     setIsAddOpen(false);
-    toast.success(t("modelAdded"));
+    toast.success(tt("modelAdded"));
   };
 
   const handleEdit = () => {
     if (!editingModel || !formData.name) {
-      toast.error(t("nameRequired"));
+      toast.error(tt("nameRequired"));
       return;
     }
     updateModel(editingModel.id, formData);
     setEditingModel(null);
     setFormData(emptyFormData);
-    toast.success(t("modelUpdated"));
+    toast.success(tt("modelUpdated"));
   };
 
   const handleDelete = (id: string) => {
     deleteModel(id);
-    toast.success(t("modelDeleted"));
+    toast.success(tt("modelDeleted"));
   };
 
   const handleFetchFromHF = async () => {
     if (!hfId.trim()) {
-      toast.error(t("hfIdRequired"));
+      toast.error(tt("hfIdRequired"));
       return;
     }
 
@@ -107,44 +182,113 @@ export function ModelTable() {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch model config");
+        throw new Error(`Failed to fetch model config: ${response.status}`);
       }
 
       const config = await response.json();
+      console.log("Fetched config:", config); // Debug log
 
-      // Extract model parameters from config
+      // Extract model name from HF ID
+      const modelName = hfId.split("/").pop() || hfId;
+
+      // For multi-modal models (like Qwen3.5), text config is nested under "text_config"
+      // For standard models, config is at root level
+      const textConfig = config.text_config || config;
+
+      // Extract model parameters from config with multiple field name variations
       const fetchedData: ModelFormData = {
-        name: hfId.split("/").pop() || hfId,
+        name: modelName,
         huggingface_id: hfId,
-        params_billions: 0, // Will be calculated
-        num_layers: config.num_hidden_layers || config.n_layer || 0,
-        hidden_size: config.hidden_size || config.n_embd || 0,
-        num_attention_heads: config.num_attention_heads || config.n_head || 0,
-        num_key_value_heads: config.num_key_value_heads || config.num_attention_heads || config.n_head || 0,
-        vocab_size: config.vocab_size || 0,
-        intermediate_size: config.intermediate_size || config.n_inner || (config.hidden_size * 4) || 0,
-        head_dim: config.head_dim || Math.floor((config.hidden_size || 0) / (config.num_attention_heads || 1)),
-        max_position_embeddings: config.max_position_embeddings || config.n_positions || 0,
+        params_billions: 0,
+        num_layers: textConfig.num_hidden_layers || textConfig.num_layers || config.num_hidden_layers || config.num_layers || config.n_layer || config.n_layers || config.decoder_layers || 0,
+        hidden_size: textConfig.hidden_size || config.hidden_size || config.d_model || config.n_embd || 0,
+        num_attention_heads: textConfig.num_attention_heads || config.num_attention_heads || config.n_head || config.n_heads || config.attention_heads || 0,
+        num_key_value_heads: textConfig.num_key_value_heads || config.num_key_value_heads || textConfig.n_kv_heads || config.n_kv_heads || textConfig.num_kv_heads || config.num_kv_heads || 0,
+        vocab_size: textConfig.vocab_size || config.vocab_size || 0,
+        intermediate_size: textConfig.intermediate_size || textConfig.moe_intermediate_size || config.intermediate_size || textConfig.ffn_hidden_size || config.ffn_hidden_size || config.n_inner || 0,
+        head_dim: textConfig.head_dim || config.head_dim || 0,
+        max_position_embeddings: textConfig.max_position_embeddings || config.max_position_embeddings || textConfig.max_sequence_length || config.max_sequence_length || config.n_positions || config.seq_length || 0,
       };
 
-      // Estimate parameter count (rough estimate)
-      const d = fetchedData.hidden_size;
-      const L = fetchedData.num_layers;
-      const V = fetchedData.vocab_size;
-      const ffnSize = fetchedData.intermediate_size;
+      // Check for hybrid attention (models like Qwen3.5 with linear attention)
+      const layerTypes = textConfig.layer_types || [];
+      if (layerTypes.length > 0 && layerTypes.includes("linear_attention")) {
+        fetchedData.is_hybrid_attention = true;
+        fetchedData.full_attention_interval = textConfig.full_attention_interval || 0;
+        fetchedData.layer_types = layerTypes;
+        fetchedData.num_full_attention_layers = layerTypes.filter((t: string) => t === "full_attention").length;
+        fetchedData.num_linear_attention_layers = layerTypes.filter((t: string) => t === "linear_attention").length;
+        fetchedData.linear_num_key_heads = textConfig.linear_num_key_heads || 0;
+        fetchedData.linear_num_value_heads = textConfig.linear_num_value_heads || 0;
+        fetchedData.linear_key_head_dim = textConfig.linear_key_head_dim || 0;
+        fetchedData.linear_value_head_dim = textConfig.linear_value_head_dim || 0;
+        fetchedData.linear_conv_kernel_dim = textConfig.linear_conv_kernel_dim || 0;
+        console.log(`Hybrid attention model: ${fetchedData.num_full_attention_layers} full, ${fetchedData.num_linear_attention_layers} linear attention layers`);
+      } else {
+        fetchedData.is_hybrid_attention = false;
+      }
 
-      // Rough parameter estimate: embeddings + attention + FFN for each layer
-      const embedParams = d * V;
-      const attnParams = L * (4 * d * d);
-      const ffnParams = L * (3 * d * ffnSize);
-      const totalParams = embedParams + attnParams + ffnParams;
-      fetchedData.params_billions = parseFloat((totalParams / 1e9).toFixed(2));
+      // If num_key_value_heads is still 0, default to num_attention_heads
+      if (fetchedData.num_key_value_heads === 0 && fetchedData.num_attention_heads > 0) {
+        fetchedData.num_key_value_heads = fetchedData.num_attention_heads;
+      }
+
+      // Calculate head_dim if not provided
+      if (fetchedData.head_dim === 0 && fetchedData.hidden_size > 0 && fetchedData.num_attention_heads > 0) {
+        fetchedData.head_dim = Math.floor(fetchedData.hidden_size / fetchedData.num_attention_heads);
+      }
+
+      // Try to parse params from model name (e.g., "397B-A17B" means 397B total, 17B active)
+      const moeMatch = hfId.match(/(\d+)B-A(\d+)B/i);
+      const standardMatch = hfId.match(/[-_](\d+)B(?:[-_]|$)/i);
+
+      if (moeMatch) {
+        // MoE model: extract total params from name
+        fetchedData.params_billions = parseFloat(moeMatch[1]);
+        console.log(`MoE model detected: ${moeMatch[1]}B total, ${moeMatch[2]}B active`);
+      } else if (standardMatch) {
+        // Standard model: extract params from name
+        fetchedData.params_billions = parseFloat(standardMatch[1]);
+      } else {
+        // Estimate parameter count from config
+        const d = fetchedData.hidden_size;
+        const L = fetchedData.num_layers;
+        const V = fetchedData.vocab_size || 32000;
+        const ffnSize = fetchedData.intermediate_size || (d * 4);
+
+        if (d > 0 && L > 0) {
+          // Check for MoE config
+          const numExperts = textConfig.num_experts || config.num_experts || textConfig.num_local_experts || config.num_local_experts || 0;
+          const expertsPerTok = textConfig.num_experts_per_tok || config.num_experts_per_tok || textConfig.top_k || config.top_k || 0;
+
+          if (numExperts > 0 && expertsPerTok > 0) {
+            // MoE parameter estimation
+            const embedParams = V * d * 2;
+            const attnParams = L * 4 * d * d;
+            const moeFfnParams = numExperts * 3 * d * ffnSize;
+            const routerParams = L * d * numExperts;
+            const totalParams = embedParams + attnParams + moeFfnParams + routerParams;
+            fetchedData.params_billions = parseFloat((totalParams / 1e9).toFixed(2));
+            console.log(`MoE estimated: ${numExperts} experts, ${(totalParams / 1e9).toFixed(2)}B params`);
+          } else {
+            // Standard parameter estimation
+            const embedParams = V * d * 2;
+            const attnParams = L * 4 * d * d;
+            const ffnParams = L * 3 * d * ffnSize;
+            const totalParams = embedParams + attnParams + ffnParams;
+            fetchedData.params_billions = parseFloat((totalParams / 1e9).toFixed(2));
+          }
+        }
+      }
+
+      console.log("Parsed model data:", fetchedData); // Debug log
 
       setPreviewData(fetchedData);
       setFormData(fetchedData);
-      toast.success(t("fetchConfigSuccess"));
-    } catch {
-      toast.error(t("fetchConfigFailed"));
+      toast.success(tt("fetchConfigSuccess"));
+    } catch (error) {
+      console.error("Failed to fetch from HuggingFace:", error);
+      toast.error(tt("fetchConfigFailed"));
     } finally {
       setIsFetching(false);
     }
@@ -164,6 +308,17 @@ export function ModelTable() {
       intermediate_size: m.intermediate_size,
       head_dim: m.head_dim,
       max_position_embeddings: m.max_position_embeddings,
+      // Hybrid attention fields
+      is_hybrid_attention: m.is_hybrid_attention,
+      full_attention_interval: m.full_attention_interval,
+      num_full_attention_layers: m.num_full_attention_layers,
+      num_linear_attention_layers: m.num_linear_attention_layers,
+      linear_num_key_heads: m.linear_num_key_heads,
+      linear_num_value_heads: m.linear_num_value_heads,
+      linear_key_head_dim: m.linear_key_head_dim,
+      linear_value_head_dim: m.linear_value_head_dim,
+      linear_conv_kernel_dim: m.linear_conv_kernel_dim,
+      layer_types: m.layer_types,
     });
   };
 
@@ -181,21 +336,21 @@ export function ModelTable() {
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
-              {t("addModel")}
+              {tt("addModel")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{t("addModel")}</DialogTitle>
+              <DialogTitle>{tt("addModel")}</DialogTitle>
               <DialogDescription>
-                {t("modelConfigDesc")}
+                {tt("modelConfigDesc")}
               </DialogDescription>
             </DialogHeader>
 
             <Tabs defaultValue="huggingface" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="huggingface">{t("importFromHf")}</TabsTrigger>
-                <TabsTrigger value="manual">{t("manualEntry")}</TabsTrigger>
+                <TabsTrigger value="huggingface">{tt("importFromHf")}</TabsTrigger>
+                <TabsTrigger value="manual">{tt("manualEntry")}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="huggingface" className="space-y-4">
@@ -211,25 +366,25 @@ export function ModelTable() {
                     ) : (
                       <Search className="mr-2 h-4 w-4" />
                     )}
-                    {t("preview")}
+                    {tt("preview")}
                   </Button>
                 </div>
 
                 {previewData && (
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">{t("preview")}</CardTitle>
-                      <CardDescription>{t("reviewBeforeSaving")}</CardDescription>
+                      <CardTitle className="text-base">{tt("preview")}</CardTitle>
+                      <CardDescription>{tt("reviewBeforeSaving")}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ModelForm formData={formData} setFormData={setFormData} />
+                      <ModelForm formData={formData} setFormData={setFormData} tt={tt} />
                     </CardContent>
                   </Card>
                 )}
               </TabsContent>
 
               <TabsContent value="manual">
-                <ModelForm formData={formData} setFormData={setFormData} />
+                <ModelForm formData={formData} setFormData={setFormData} tt={tt} />
               </TabsContent>
             </Tabs>
 
@@ -240,10 +395,10 @@ export function ModelTable() {
                 setPreviewData(null);
                 setHfId("");
               }}>
-                {t("cancel")}
+                {tt("cancel")}
               </Button>
               <Button onClick={handleAdd} disabled={!formData.name}>
-                {t("addModel")}
+                {tt("addModel")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -254,14 +409,14 @@ export function ModelTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("name")}</TableHead>
-              <TableHead>{t("huggingfaceId")}</TableHead>
-              <TableHead className="text-right">{t("paramsBillions")}</TableHead>
-              <TableHead className="text-right">{t("numLayers")}</TableHead>
-              <TableHead className="text-right">{t("hiddenSize")}</TableHead>
-              <TableHead className="text-right">{t("numAttentionHeads")}</TableHead>
-              <TableHead className="text-right">{t("numKeyValueHeads")}</TableHead>
-              <TableHead className="w-[100px]">{t("actions")}</TableHead>
+              <TableHead>{tt("name")}</TableHead>
+              <TableHead>{tt("huggingfaceId")}</TableHead>
+              <TableHead className="text-right">{tt("paramsBillions")}</TableHead>
+              <TableHead className="text-right">{tt("numLayers")}</TableHead>
+              <TableHead className="text-right">{tt("hiddenSize")}</TableHead>
+              <TableHead className="text-right">{tt("numAttentionHeads")}</TableHead>
+              <TableHead className="text-right">{tt("numKeyValueHeads")}</TableHead>
+              <TableHead className="w-[100px]">{tt("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -309,12 +464,12 @@ export function ModelTable() {
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">
                         <DialogHeader>
-                          <DialogTitle>{t("editModel")}</DialogTitle>
+                          <DialogTitle>{tt("editModel")}</DialogTitle>
                           <DialogDescription>
-                            {t("editModelDesc")}
+                            {tt("editModelDesc")}
                           </DialogDescription>
                         </DialogHeader>
-                        <ModelForm formData={formData} setFormData={setFormData} />
+                        <ModelForm formData={formData} setFormData={setFormData} tt={tt} />
                         <DialogFooter>
                           <Button
                             variant="outline"
@@ -323,9 +478,9 @@ export function ModelTable() {
                               setFormData(emptyFormData);
                             }}
                           >
-                            {t("cancel")}
+                            {tt("cancel")}
                           </Button>
-                          <Button onClick={handleEdit}>{t("save")}</Button>
+                          <Button onClick={handleEdit}>{tt("save")}</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
@@ -338,16 +493,16 @@ export function ModelTable() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>{t("delete")} Model</AlertDialogTitle>
+                          <AlertDialogTitle>{tt("delete")} Model</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to delete {m.name}? This action
                             cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+                          <AlertDialogCancel>{tt("cancel")}</AlertDialogCancel>
                           <AlertDialogAction onClick={() => handleDelete(m.id)}>
-                            {t("delete")}
+                            {tt("delete")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -366,15 +521,15 @@ export function ModelTable() {
 interface ModelFormProps {
   formData: ModelFormData;
   setFormData: (data: ModelFormData) => void;
+  tt: (key: string, params?: Record<string, string | number>) => string;
 }
 
-function ModelForm({ formData, setFormData }: ModelFormProps) {
-  const { t } = useLanguageStore();
+function ModelForm({ formData, setFormData, tt }: ModelFormProps) {
   return (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">{t("name")}</Label>
+          <Label htmlFor="name">{tt("name")}</Label>
           <Input
             id="name"
             value={formData.name}
@@ -383,7 +538,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="hf_id">{t("huggingfaceId")}</Label>
+          <Label htmlFor="hf_id">{tt("huggingfaceId")}</Label>
           <Input
             id="hf_id"
             value={formData.huggingface_id}
@@ -395,7 +550,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="params">{t("paramsBillions")}</Label>
+          <Label htmlFor="params">{tt("paramsBillions")}</Label>
           <Input
             id="params"
             type="number"
@@ -407,7 +562,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="layers">{t("numLayers")}</Label>
+          <Label htmlFor="layers">{tt("numLayers")}</Label>
           <Input
             id="layers"
             type="number"
@@ -418,7 +573,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="hidden_size">{t("hiddenSize")}</Label>
+          <Label htmlFor="hidden_size">{tt("hiddenSize")}</Label>
           <Input
             id="hidden_size"
             type="number"
@@ -432,7 +587,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="attn_heads">{t("numAttentionHeads")}</Label>
+          <Label htmlFor="attn_heads">{tt("numAttentionHeads")}</Label>
           <Input
             id="attn_heads"
             type="number"
@@ -443,7 +598,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="kv_heads">{t("numKeyValueHeads")}</Label>
+          <Label htmlFor="kv_heads">{tt("numKeyValueHeads")}</Label>
           <Input
             id="kv_heads"
             type="number"
@@ -454,7 +609,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="head_dim">{t("headDim")}</Label>
+          <Label htmlFor="head_dim">{tt("headDim")}</Label>
           <Input
             id="head_dim"
             type="number"
@@ -468,7 +623,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="vocab_size">{t("vocabSize")}</Label>
+          <Label htmlFor="vocab_size">{tt("vocabSize")}</Label>
           <Input
             id="vocab_size"
             type="number"
@@ -479,7 +634,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="intermediate">{t("intermediateSize")}</Label>
+          <Label htmlFor="intermediate">{tt("intermediateSize")}</Label>
           <Input
             id="intermediate"
             type="number"
@@ -490,7 +645,7 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="max_pos">{t("maxPositionEmbeddings")}</Label>
+          <Label htmlFor="max_pos">{tt("maxPositionEmbeddings")}</Label>
           <Input
             id="max_pos"
             type="number"
@@ -501,6 +656,130 @@ function ModelForm({ formData, setFormData }: ModelFormProps) {
           />
         </div>
       </div>
+
+      {/* Hybrid Attention Config - only show if model has hybrid attention */}
+      {formData.is_hybrid_attention && formData.num_linear_attention_layers && formData.num_linear_attention_layers > 0 && (
+        <div className="border rounded-lg p-4 space-y-4 bg-blue-50/50 dark:bg-blue-950/20">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-blue-500" />
+            <span className="font-semibold text-blue-700 dark:text-blue-400">{tt("hybridAttentionConfig")}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{tt("hybridAttentionDesc")}</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="num_full_layers" className="text-green-700 dark:text-green-400">{tt("fullAttentionLayers")}</Label>
+              <Input
+                id="num_full_layers"
+                type="number"
+                value={formData.num_full_attention_layers || 0}
+                onChange={(e) =>
+                  setFormData({ ...formData, num_full_attention_layers: Number(e.target.value) })
+                }
+                className="border-green-200 dark:border-green-800"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="num_linear_layers" className="text-blue-700 dark:text-blue-400">{tt("linearAttentionLayers")}</Label>
+              <Input
+                id="num_linear_layers"
+                type="number"
+                value={formData.num_linear_attention_layers || 0}
+                onChange={(e) =>
+                  setFormData({ ...formData, num_linear_attention_layers: Number(e.target.value) })
+                }
+                className="border-blue-200 dark:border-blue-800"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="full_interval">{tt("fullAttnInterval")}</Label>
+              <Input
+                id="full_interval"
+                type="number"
+                value={formData.full_attention_interval || 0}
+                onChange={(e) =>
+                  setFormData({ ...formData, full_attention_interval: Number(e.target.value) })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="is_hybrid" className="flex items-center gap-2">
+                <span>{tt("hybridAttention")}</span>
+                <input
+                  id="is_hybrid"
+                  type="checkbox"
+                  checked={formData.is_hybrid_attention || false}
+                  onChange={(e) =>
+                    setFormData({ ...formData, is_hybrid_attention: e.target.checked })
+                  }
+                  className="h-4 w-4"
+                />
+              </Label>
+            </div>
+          </div>
+
+          <div className="border-t border-blue-200 dark:border-blue-800 pt-4 mt-2">
+            <div className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-3">{tt("hybridAttentionConfig")} - Linear Attention</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="linear_k_heads">{tt("linearKeyHeads")}</Label>
+                <Input
+                  id="linear_k_heads"
+                  type="number"
+                  value={formData.linear_num_key_heads || 0}
+                  onChange={(e) =>
+                    setFormData({ ...formData, linear_num_key_heads: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="linear_v_heads">{tt("linearValueHeads")}</Label>
+                <Input
+                  id="linear_v_heads"
+                  type="number"
+                  value={formData.linear_num_value_heads || 0}
+                  onChange={(e) =>
+                    setFormData({ ...formData, linear_num_value_heads: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="linear_k_dim">{tt("linearKeyDim")}</Label>
+                <Input
+                  id="linear_k_dim"
+                  type="number"
+                  value={formData.linear_key_head_dim || 0}
+                  onChange={(e) =>
+                    setFormData({ ...formData, linear_key_head_dim: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="linear_v_dim">{tt("linearValueDim")}</Label>
+                <Input
+                  id="linear_v_dim"
+                  type="number"
+                  value={formData.linear_value_head_dim || 0}
+                  onChange={(e) =>
+                    setFormData({ ...formData, linear_value_head_dim: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="linear_conv_kernel">{tt("linearConvKernelDim")}</Label>
+                <Input
+                  id="linear_conv_kernel"
+                  type="number"
+                  value={formData.linear_conv_kernel_dim || 0}
+                  onChange={(e) =>
+                    setFormData({ ...formData, linear_conv_kernel_dim: Number(e.target.value) })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
