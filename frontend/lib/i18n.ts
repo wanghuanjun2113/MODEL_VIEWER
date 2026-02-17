@@ -192,6 +192,15 @@ export const translations = {
     linearModelsNote: "Fixed state size, no per-token KV cache growth",
     hybridModels: "Hybrid Models",
     hybridModelsNote: "Combines multiple attention mechanisms, calculation varies by layer",
+    currentModelFormula: "Current Model Formula",
+    allArchitectures: "All Architectures",
+    currentModel: "Current",
+    formula: "Formula",
+    substitution: "Substitution",
+    parameters: "Parameters",
+    calculationResult: "Calculation Result",
+    perTokenKvCache: "Per-Token KVCache",
+    perSeqKvCache: "Per-Sequence KVCache",
 
     // Status indicators
     statusGood: "Good",
@@ -385,6 +394,15 @@ export const translations = {
     linearModelsNote: "固定状态大小，无随序列长度增长的 KVCache",
     hybridModels: "混合模型",
     hybridModelsNote: "结合多种注意力机制，计算方式因层而异",
+    currentModelFormula: "当前模型计算公式",
+    allArchitectures: "所有架构",
+    currentModel: "当前",
+    formula: "公式",
+    substitution: "代入值",
+    parameters: "参数",
+    calculationResult: "计算结果",
+    perTokenKvCache: "单Token KVCache",
+    perSeqKvCache: "单序列 KVCache",
 
     // Status indicators
     statusGood: "良好",

@@ -3,10 +3,16 @@
 import React, { useState, useEffect } from "react";
 
 import { useLanguage } from "@/lib/i18n";
-import type { ConcurrencyResult } from "@/lib/types";
+import type { ConcurrencyResult, Model, Precision } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Users,
   Zap,
@@ -45,6 +51,15 @@ const defaultTranslations: Record<string, string> = {
   linearModelsNote: "Fixed state size, no per-token KV cache growth",
   hybridModels: "Hybrid Models",
   hybridModelsNote: "Combines multiple attention mechanisms, calculation varies by layer",
+  currentModelFormula: "Current Model Formula",
+  allArchitectures: "All Architectures",
+  currentModel: "Current",
+  formula: "Formula",
+  substitution: "Substitution",
+  parameters: "Parameters",
+  calculationResult: "Calculation Result",
+  perTokenKvCache: "Per-Token KVCache",
+  perSeqKvCache: "Per-Sequence KVCache",
 };
 
 interface ConcurrencyResultsProps {
@@ -68,6 +83,24 @@ export function ConcurrencyResults({ result }: ConcurrencyResultsProps) {
   });
 
   if (!result) {
+    // Default model for placeholder display
+    const defaultModel: Model = {
+      id: "",
+      name: "",
+      huggingface_id: "",
+      params_billions: 0,
+      num_layers: 0,
+      hidden_size: 0,
+      num_attention_heads: 0,
+      num_key_value_heads: 0,
+      vocab_size: 0,
+      intermediate_size: 0,
+      head_dim: 0,
+      max_position_embeddings: 0,
+      created_at: "",
+      updated_at: "",
+    };
+
     return (
       <div className="space-y-4">
         <ConcurrencyCard tt={tt} title={tt("maxConcurrency")} withoutPA="--" withPA="--" />
@@ -84,6 +117,8 @@ export function ConcurrencyResults({ result }: ConcurrencyResultsProps) {
           singleConcurrencyKvCache={0}
           maxConcurrency={0}
           contextLength={0}
+          model={defaultModel}
+          precision="FP16"
         />
       </div>
     );
@@ -126,6 +161,8 @@ export function ConcurrencyResults({ result }: ConcurrencyResultsProps) {
         singleConcurrencyKvCache={singleConcurrencyKvCache}
         maxConcurrency={maxConcurrency}
         contextLength={result.input.context_length}
+        model={result.model}
+        precision={result.input.attention_precision}
       />
     </div>
   );
@@ -187,6 +224,8 @@ interface MemoryBreakdownCardProps {
   singleConcurrencyKvCache: number;
   maxConcurrency: number;
   contextLength: number;
+  model: Model;
+  precision: Precision;
   tt: (key: string) => string;
 }
 
@@ -202,6 +241,8 @@ function MemoryBreakdownCard({
   singleConcurrencyKvCache,
   maxConcurrency,
   contextLength,
+  model,
+  precision,
   tt,
 }: MemoryBreakdownCardProps) {
   const totalFixed = weightMemory + frameworkOverhead + activationReserve;
@@ -272,7 +313,13 @@ function MemoryBreakdownCard({
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Database className="h-3 w-3" />
             {tt("kvCacheInfo")}
-            <KvCacheFormulaPopover tt={tt} />
+            <KvCacheFormulaDialog
+              tt={tt}
+              model={model}
+              precision={precision}
+              contextLength={contextLength}
+              singleTokenKvCache={singleTokenKvCache}
+            />
           </div>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
@@ -307,123 +354,238 @@ function MemoryBreakdownCard({
   );
 }
 
-// KVCache formula popover component
-interface KvCacheFormulaPopoverProps {
-  tt: (key: string) => string;
+// Helper function to get bytes per element
+function getBytesPerElement(precision: Precision): number {
+  switch (precision) {
+    case "FP16":
+    case "BF16":
+      return 2;
+    case "INT8":
+      return 1;
+  }
 }
 
-function KvCacheFormulaPopover({ tt }: KvCacheFormulaPopoverProps) {
+// KVCache formula dialog component
+interface KvCacheFormulaDialogProps {
+  tt: (key: string) => string;
+  model: Model;
+  precision: Precision;
+  contextLength: number;
+  singleTokenKvCache: number;
+}
+
+function KvCacheFormulaDialog({
+  tt,
+  model,
+  precision,
+  contextLength,
+  singleTokenKvCache,
+}: KvCacheFormulaDialogProps) {
+  const bytesPerElement = getBytesPerElement(precision);
+  const numLayers = model.num_layers;
+  const numHeads = model.num_attention_heads;
+  const numKvHeads = model.num_key_value_heads;
+  const headDim = model.head_dim;
+
+  // Determine attention type
+  const getAttentionType = (): { type: string; formula: string; example: string } => {
+    if (numKvHeads === numHeads) {
+      // MHA - standard multi-head attention
+      return {
+        type: "MHA (Multi-Head Attention)",
+        formula: `KV = 2 × L × H × d × seq × bytes`,
+        example: `= 2 × ${numLayers} × ${numHeads} × ${headDim} × ${contextLength} × ${bytesPerElement}`,
+      };
+    } else if (numKvHeads === 1) {
+      // MQA - multi-query attention
+      return {
+        type: "MQA (Multi-Query Attention)",
+        formula: `KV = 2 × L × 1 × d × seq × bytes`,
+        example: `= 2 × ${numLayers} × 1 × ${headDim} × ${contextLength} × ${bytesPerElement}`,
+      };
+    } else {
+      // GQA - grouped query attention
+      return {
+        type: "GQA (Grouped Query Attention)",
+        formula: `KV = 2 × L × H_kv × d × seq × bytes`,
+        example: `= 2 × ${numLayers} × ${numKvHeads} × ${headDim} × ${contextLength} × ${bytesPerElement}`,
+      };
+    }
+  };
+
+  const attentionInfo = getAttentionType();
+
+  // Calculate the expected value
+  const kvCachePerTokenBytes = 2 * numLayers * numKvHeads * headDim * bytesPerElement;
+  const kvCachePerTokenMB = kvCachePerTokenBytes / (1024 * 1024);
+  const kvCachePerSeqGB = (kvCachePerTokenBytes * contextLength) / (1024 * 1024 * 1024);
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <Dialog>
+      <DialogTrigger asChild>
         <button className="inline-flex items-center justify-center rounded-full hover:bg-muted/50 p-0.5 transition-colors">
           <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 max-h-96 overflow-y-auto" align="start">
-        <div className="space-y-4 text-sm">
-          <div className="font-semibold text-base flex items-center gap-2">
-            <Database className="h-4 w-4" />
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" />
             {tt("kvCacheFormulas")}
-          </div>
+          </DialogTitle>
+        </DialogHeader>
 
-          {/* Standard MHA */}
-          <div className="space-y-1">
-            <div className="font-medium text-primary">MHA (Multi-Head Attention)</div>
-            <div className="text-xs text-muted-foreground">
-              GPT-2, BERT, Original Transformer
+        <div className="space-y-6 mt-4">
+          {/* Current Model Calculation */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span className="font-semibold text-primary">{tt("currentModelFormula")}</span>
             </div>
-            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
-              KV = 2 × L × H × d × seq × bytes
-            </div>
-            <div className="text-xs text-muted-foreground">
-              H = num_attention_heads, d = head_dim
-            </div>
-          </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium">{model.name}</span>
+                <span className="text-xs bg-muted px-2 py-0.5 rounded">{attentionInfo.type}</span>
+              </div>
 
-          <Separator />
+              <div className="bg-background/80 p-3 rounded border space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">{tt("formula")}</div>
+                <div className="font-mono text-sm bg-muted/50 p-2 rounded">
+                  {attentionInfo.formula}
+                </div>
 
-          {/* GQA */}
-          <div className="space-y-1">
-            <div className="font-medium text-primary">GQA (Grouped Query Attention)</div>
-            <div className="text-xs text-muted-foreground">
-              Llama 2/3, Mistral, Qwen, Gemma
-            </div>
-            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
-              KV = 2 × L × H_kv × d × seq × bytes
-            </div>
-            <div className="text-xs text-muted-foreground">
-              H_kv = num_key_value_heads (≤ H)
-            </div>
-          </div>
+                <div className="text-sm font-medium text-muted-foreground mt-3">{tt("substitution")}</div>
+                <div className="font-mono text-xs bg-muted/50 p-2 rounded text-primary">
+                  {attentionInfo.example}
+                </div>
 
-          <Separator />
+                <div className="text-sm font-medium text-muted-foreground mt-3">{tt("parameters")}</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">L (layers)</span>
+                    <span className="font-mono">{numLayers}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">H (query heads)</span>
+                    <span className="font-mono">{numHeads}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">H_kv (kv heads)</span>
+                    <span className="font-mono">{numKvHeads}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">d (head_dim)</span>
+                    <span className="font-mono">{headDim}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">seq (context)</span>
+                    <span className="font-mono">{contextLength}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">bytes (precision)</span>
+                    <span className="font-mono">{bytesPerElement} ({precision})</span>
+                  </div>
+                </div>
 
-          {/* MQA */}
-          <div className="space-y-1">
-            <div className="font-medium text-primary">MQA (Multi-Query Attention)</div>
-            <div className="text-xs text-muted-foreground">
-              PaLM, Falcon (some variants)
-            </div>
-            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
-              KV = 2 × L × 1 × d × seq × bytes
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Single KV head shared across all query heads
-            </div>
-          </div>
+                <Separator className="my-3" />
 
-          <Separator />
-
-          {/* MLA */}
-          <div className="space-y-1">
-            <div className="font-medium text-primary">MLA (Multi-Head Latent Attention)</div>
-            <div className="text-xs text-muted-foreground">
-              DeepSeek-V2, DeepSeek-V3
-            </div>
-            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
-              KV = L × d_latent × seq × bytes
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Compressed latent representation (d_latent ≪ 2×H×d)
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Linear / SSM */}
-          <div className="space-y-1">
-            <div className="font-medium text-primary">{tt("linearModels")}</div>
-            <div className="text-xs text-muted-foreground">
-              Mamba, RWKV, State Space Models
-            </div>
-            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
-              State = L × d_state × bytes (Fixed size)
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {tt("linearModelsNote")}
+                <div className="text-sm font-medium text-muted-foreground">{tt("calculationResult")}</div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-muted/50 p-2 rounded">
+                    <div className="text-xs text-muted-foreground mb-1">{tt("perTokenKvCache")}</div>
+                    <div className="font-mono font-semibold">{kvCachePerTokenMB.toFixed(4)} MB</div>
+                  </div>
+                  <div className="bg-primary/10 p-2 rounded">
+                    <div className="text-xs text-muted-foreground mb-1">{tt("perSeqKvCache")}</div>
+                    <div className="font-mono font-semibold text-primary">{kvCachePerSeqGB.toFixed(4)} GB</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           <Separator />
 
-          {/* Hybrid */}
-          <div className="space-y-1">
-            <div className="font-medium text-primary">{tt("hybridModels")}</div>
-            <div className="text-xs text-muted-foreground">
-              Jamba, DeepSeek-V3 (MoE+MLA)
+          {/* All Architecture Formulas */}
+          <div>
+            <div className="font-semibold mb-4 flex items-center gap-2">
+              <span>{tt("allArchitectures")}</span>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {tt("hybridModelsNote")}
-            </div>
-          </div>
+            <div className="grid gap-4">
+              {/* Standard MHA */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-primary text-sm">MHA (Multi-Head Attention)</span>
+                  {numKvHeads === numHeads && (
+                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">{tt("currentModel")}</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">GPT-2, BERT, Original Transformer</div>
+                <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+                  KV = 2 × L × H × d × seq × bytes
+                </div>
+              </div>
 
-          <div className="text-xs text-muted-foreground pt-2 border-t">
-            <div><strong>L</strong> = num_layers, <strong>seq</strong> = context_length</div>
-            <div><strong>bytes</strong> = 2 (FP16/BF16) or 1 (INT8)</div>
+              {/* GQA */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-primary text-sm">GQA (Grouped Query Attention)</span>
+                  {numKvHeads > 1 && numKvHeads < numHeads && (
+                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">{tt("currentModel")}</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">Llama 2/3, Mistral, Qwen, Gemma</div>
+                <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+                  KV = 2 × L × H_kv × d × seq × bytes
+                </div>
+                <div className="text-xs text-muted-foreground">H_kv = num_key_value_heads (≤ H)</div>
+              </div>
+
+              {/* MQA */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-primary text-sm">MQA (Multi-Query Attention)</span>
+                  {numKvHeads === 1 && (
+                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">{tt("currentModel")}</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">PaLM, Falcon (some variants)</div>
+                <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+                  KV = 2 × L × 1 × d × seq × bytes
+                </div>
+                <div className="text-xs text-muted-foreground">Single KV head shared across all query heads</div>
+              </div>
+
+              {/* MLA */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <span className="font-medium text-primary text-sm">MLA (Multi-Head Latent Attention)</span>
+                <div className="text-xs text-muted-foreground">DeepSeek-V2, DeepSeek-V3</div>
+                <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+                  KV = L × d_latent × seq × bytes
+                </div>
+                <div className="text-xs text-muted-foreground">Compressed latent representation (d_latent ≪ 2×H×d)</div>
+              </div>
+
+              {/* Linear / SSM */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <span className="font-medium text-primary text-sm">{tt("linearModels")}</span>
+                <div className="text-xs text-muted-foreground">Mamba, RWKV, State Space Models</div>
+                <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+                  State = L × d_state × bytes (Fixed size)
+                </div>
+                <div className="text-xs text-muted-foreground">{tt("linearModelsNote")}</div>
+              </div>
+
+              {/* Hybrid */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <span className="font-medium text-primary text-sm">{tt("hybridModels")}</span>
+                <div className="text-xs text-muted-foreground">Jamba, DeepSeek-V3 (MoE+MLA)</div>
+                <div className="text-xs text-muted-foreground">{tt("hybridModelsNote")}</div>
+              </div>
+            </div>
           </div>
         </div>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 }
