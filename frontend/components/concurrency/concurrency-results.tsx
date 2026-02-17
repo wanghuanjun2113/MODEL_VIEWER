@@ -6,6 +6,7 @@ import { useLanguage } from "@/lib/i18n";
 import type { ConcurrencyResult } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Users,
   Zap,
@@ -15,6 +16,7 @@ import {
   Database,
   Lightbulb,
   MemoryStick,
+  Info,
 } from "lucide-react";
 
 // Default English translations for SSR
@@ -38,6 +40,11 @@ const defaultTranslations: Record<string, string> = {
   singleConcurrencyKvCache: "Single Concurrency KVCache",
   maxConcurrencyLabel: "Max Concurrency",
   runCalculationToSeeDetails: "Run a calculation to see memory details",
+  kvCacheFormulas: "KVCache Formulas by Architecture",
+  linearModels: "Linear / SSM Models",
+  linearModelsNote: "Fixed state size, no per-token KV cache growth",
+  hybridModels: "Hybrid Models",
+  hybridModelsNote: "Combines multiple attention mechanisms, calculation varies by layer",
 };
 
 interface ConcurrencyResultsProps {
@@ -265,6 +272,7 @@ function MemoryBreakdownCard({
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Database className="h-3 w-3" />
             {tt("kvCacheInfo")}
+            <KvCacheFormulaPopover tt={tt} />
           </div>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
@@ -296,5 +304,126 @@ function MemoryBreakdownCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// KVCache formula popover component
+interface KvCacheFormulaPopoverProps {
+  tt: (key: string) => string;
+}
+
+function KvCacheFormulaPopover({ tt }: KvCacheFormulaPopoverProps) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="inline-flex items-center justify-center rounded-full hover:bg-muted/50 p-0.5 transition-colors">
+          <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 max-h-96 overflow-y-auto" align="start">
+        <div className="space-y-4 text-sm">
+          <div className="font-semibold text-base flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            {tt("kvCacheFormulas")}
+          </div>
+
+          {/* Standard MHA */}
+          <div className="space-y-1">
+            <div className="font-medium text-primary">MHA (Multi-Head Attention)</div>
+            <div className="text-xs text-muted-foreground">
+              GPT-2, BERT, Original Transformer
+            </div>
+            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+              KV = 2 × L × H × d × seq × bytes
+            </div>
+            <div className="text-xs text-muted-foreground">
+              H = num_attention_heads, d = head_dim
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* GQA */}
+          <div className="space-y-1">
+            <div className="font-medium text-primary">GQA (Grouped Query Attention)</div>
+            <div className="text-xs text-muted-foreground">
+              Llama 2/3, Mistral, Qwen, Gemma
+            </div>
+            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+              KV = 2 × L × H_kv × d × seq × bytes
+            </div>
+            <div className="text-xs text-muted-foreground">
+              H_kv = num_key_value_heads (≤ H)
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* MQA */}
+          <div className="space-y-1">
+            <div className="font-medium text-primary">MQA (Multi-Query Attention)</div>
+            <div className="text-xs text-muted-foreground">
+              PaLM, Falcon (some variants)
+            </div>
+            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+              KV = 2 × L × 1 × d × seq × bytes
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Single KV head shared across all query heads
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* MLA */}
+          <div className="space-y-1">
+            <div className="font-medium text-primary">MLA (Multi-Head Latent Attention)</div>
+            <div className="text-xs text-muted-foreground">
+              DeepSeek-V2, DeepSeek-V3
+            </div>
+            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+              KV = L × d_latent × seq × bytes
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Compressed latent representation (d_latent ≪ 2×H×d)
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Linear / SSM */}
+          <div className="space-y-1">
+            <div className="font-medium text-primary">{tt("linearModels")}</div>
+            <div className="text-xs text-muted-foreground">
+              Mamba, RWKV, State Space Models
+            </div>
+            <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+              State = L × d_state × bytes (Fixed size)
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {tt("linearModelsNote")}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Hybrid */}
+          <div className="space-y-1">
+            <div className="font-medium text-primary">{tt("hybridModels")}</div>
+            <div className="text-xs text-muted-foreground">
+              Jamba, DeepSeek-V3 (MoE+MLA)
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {tt("hybridModelsNote")}
+            </div>
+          </div>
+
+          <div className="text-xs text-muted-foreground pt-2 border-t">
+            <div><strong>L</strong> = num_layers, <strong>seq</strong> = context_length</div>
+            <div><strong>bytes</strong> = 2 (FP16/BF16) or 1 (INT8)</div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

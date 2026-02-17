@@ -187,6 +187,11 @@ export const translations = {
     singleTokenKvCache: "Single Token KVCache",
     singleConcurrencyKvCache: "Single Concurrency KVCache",
     maxConcurrencyLabel: "Max Concurrency",
+    kvCacheFormulas: "KVCache Formulas by Architecture",
+    linearModels: "Linear / SSM Models",
+    linearModelsNote: "Fixed state size, no per-token KV cache growth",
+    hybridModels: "Hybrid Models",
+    hybridModelsNote: "Combines multiple attention mechanisms, calculation varies by layer",
 
     // Status indicators
     statusGood: "Good",
@@ -375,6 +380,11 @@ export const translations = {
     singleTokenKvCache: "单Token KVCache",
     singleConcurrencyKvCache: "单并发 KVCache",
     maxConcurrencyLabel: "最大并发数",
+    kvCacheFormulas: "不同架构的 KVCache 计算公式",
+    linearModels: "线性 / SSM 模型",
+    linearModelsNote: "固定状态大小，无随序列长度增长的 KVCache",
+    hybridModels: "混合模型",
+    hybridModelsNote: "结合多种注意力机制，计算方式因层而异",
 
     // Status indicators
     statusGood: "良好",
