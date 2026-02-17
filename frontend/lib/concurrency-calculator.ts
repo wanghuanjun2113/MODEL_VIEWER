@@ -3,6 +3,7 @@ import type {
   Model,
   ConcurrencyInput,
   ConcurrencyResult,
+  ConcurrencyCalculation,
   MemoryBreakdown,
   Precision,
 } from "./types";
@@ -15,8 +16,6 @@ function getBytesPerElement(precision: Precision): number {
       return 2;
     case "INT8":
       return 1;
-    case "FP32":
-      return 4;
   }
 }
 
@@ -59,14 +58,15 @@ export function calculateMaxConcurrency(
   input: ConcurrencyInput,
   hardware: Hardware,
   model: Model
-): ConcurrencyResult {
+): ConcurrencyCalculation {
   // Total memory for multi-GPU setup
   const totalMemory = hardware.memory_size_gb * input.gpu_count;
 
   // Fixed memory allocations
   const weightMemory = calculateModelWeightMemory(model, input.attention_precision);
   const frameworkOverhead = input.framework_overhead_gb;
-  const activationReserve = input.activation_reserve_gb;
+  // Activation reserve = (1 - gpu_utilization) * total_memory
+  const activationReserve = (1 - input.gpu_utilization) * totalMemory;
 
   // Memory available for KV cache
   const kvCacheMemory = Math.max(
@@ -115,7 +115,7 @@ export function calculateMaxConcurrency(
 
 // Calculate max concurrency with Paged Attention
 export function calculateMaxConcurrencyWithPA(
-  result: ConcurrencyResult,
+  result: ConcurrencyCalculation,
   pagedAttentionFactor: number = 2.3
 ): number {
   // With Paged Attention, effective KV cache memory is reduced
@@ -133,7 +133,7 @@ export function calculateMaxConcurrencyWithPA(
 
 // Calculate memory breakdown with specific concurrency count
 export function calculateMemoryWithConcurrency(
-  result: ConcurrencyResult,
+  result: ConcurrencyCalculation,
   concurrency: number
 ): MemoryBreakdown {
   return {

@@ -101,7 +101,7 @@ export interface ConcurrencyInput {
   context_length: number;
   attention_precision: Precision;
   framework_overhead_gb: number;
-  activation_reserve_gb: number;  // Reserved memory for activations
+  gpu_utilization: number;  // GPU utilization ratio (0-1), activation_reserve = (1 - gpu_utilization) * total_memory
 }
 
 export interface MemoryBreakdown {
@@ -127,6 +127,9 @@ export interface ConcurrencyResult {
   per_request_activation_gb: number;  // Activation memory per request
   timestamp: string;
 }
+
+// Intermediate calculation result (without metadata)
+export type ConcurrencyCalculation = Omit<ConcurrencyResult, 'id' | 'input' | 'hardware' | 'model' | 'timestamp'>;
 
 // GPU count options for multi-GPU support
 export const GPU_COUNT_OPTIONS = [

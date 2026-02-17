@@ -41,7 +41,12 @@ export function ConcurrencyComparisonTable() {
     setMounted(true);
   }, []);
 
-  const tt = mounted && isHydrated ? t : ((key: string) => defaultTranslations[key] || key);
+  const tt = ((key: string) => {
+    if (mounted && isHydrated) {
+      return t(key as any);
+    }
+    return defaultTranslations[key] || key;
+  });
 
   const handleExport = () => {
     if (concurrencyResults.length === 0) {
@@ -57,7 +62,7 @@ export function ConcurrencyComparisonTable() {
       context_length: r.input.context_length,
       attention_precision: r.input.attention_precision,
       framework_overhead_gb: r.input.framework_overhead_gb,
-      activation_reserve_gb: r.input.activation_reserve_gb,
+      gpu_utilization: r.input.gpu_utilization,
       max_concurrency_without_pa: r.max_concurrency_without_pa,
       max_concurrency_with_pa: r.max_concurrency_with_pa,
       hardware_memory_gb: r.hardware_memory_gb,

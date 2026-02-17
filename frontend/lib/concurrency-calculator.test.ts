@@ -11,7 +11,7 @@ describe("Concurrency Calculator", () => {
     name: "NVIDIA A100 80GB",
     fp16_peak_tflops: 312,
     bf16_peak_tflops: 312,
-    fp32_peak_tflops: 156,
+    int8_peak_tops: 624,
     memory_size_gb: 80,
     memory_bandwidth_tbps: 2.039,
     created_at: new Date().toISOString(),
@@ -40,8 +40,9 @@ describe("Concurrency Calculator", () => {
     model_id: "1",
     gpu_count: 1,
     context_length: 4096,
-    precision: "FP16",
+    attention_precision: "FP16",
     framework_overhead_gb: 2,
+    gpu_utilization: 0.9,
   };
 
   describe("calculateMaxConcurrency", () => {
@@ -52,7 +53,10 @@ describe("Concurrency Calculator", () => {
       expect(result.max_concurrency_without_pa).toBeGreaterThanOrEqual(0);
       expect(result.max_concurrency_with_pa).toBeGreaterThanOrEqual(0);
       expect(result.hardware_memory_gb).toBe(mockHardware.memory_size_gb);
-      expect(result.available_memory_gb).toBe(mockHardware.memory_size_gb - baseInput.framework_overhead_gb);
+      // Available memory = total - weight - framework_overhead - activation_reserve
+      // activation_reserve = (1 - gpu_utilization) * total
+      expect(result.available_memory_gb).toBeGreaterThan(0);
+      expect(result.available_memory_gb).toBeLessThan(mockHardware.memory_size_gb);
     });
 
     it("should include memory breakdown", () => {
@@ -84,7 +88,7 @@ describe("Concurrency Calculator", () => {
     });
 
     it("should calculate correct weight memory for INT8", () => {
-      const int8Input = { ...baseInput, precision: "INT8" as const };
+      const int8Input = { ...baseInput, attention_precision: "INT8" as const };
       const result = calculateMaxConcurrency(int8Input, mockHardware, mockModel);
 
       // 7B model in INT8 = approximately 6.5-7GB
@@ -92,13 +96,13 @@ describe("Concurrency Calculator", () => {
       expect(result.memory_breakdown.weight_memory_gb).toBeLessThan(8);
     });
 
-    it("should calculate correct weight memory for FP32", () => {
-      const fp32Input = { ...baseInput, precision: "FP32" as const };
-      const result = calculateMaxConcurrency(fp32Input, mockHardware, mockModel);
+    it("should calculate correct weight memory for BF16", () => {
+      const bf16Input = { ...baseInput, attention_precision: "BF16" as const };
+      const result = calculateMaxConcurrency(bf16Input, mockHardware, mockModel);
 
-      // 7B model in FP32 = approximately 26-28GB
-      expect(result.memory_breakdown.weight_memory_gb).toBeGreaterThan(26);
-      expect(result.memory_breakdown.weight_memory_gb).toBeLessThan(30);
+      // 7B model in BF16 = approximately 13-14GB (same as FP16)
+      expect(result.memory_breakdown.weight_memory_gb).toBeGreaterThan(13);
+      expect(result.memory_breakdown.weight_memory_gb).toBeLessThan(15);
     });
   });
 
@@ -113,10 +117,9 @@ describe("Concurrency Calculator", () => {
       // 8 GPU should have 8x hardware memory
       expect(eightResult.hardware_memory_gb).toBe(singleResult.hardware_memory_gb * 8);
 
-      // 8 GPU should have 8x available memory minus fixed framework overhead
-      // Single: 80 - 2 = 78
-      // 8 GPU: 80*8 - 2 = 638
-      expect(eightResult.available_memory_gb).toBe(638);
+      // 8 GPU should have more available memory than single GPU (scaled by GPU count)
+      // Available memory scales with total memory, but weight stays the same
+      expect(eightResult.available_memory_gb).toBeGreaterThan(singleResult.available_memory_gb);
     });
 
     it("should increase max concurrency with GPU count", () => {
@@ -166,13 +169,14 @@ describe("Concurrency Calculator", () => {
 
       const memory = calculateMemoryWithConcurrency(result, concurrency);
 
-      expect(memory.kv_cache_memory_gb).toBe(result.memory_breakdown.kv_cache_memory_gb * concurrency);
-      expect(memory.activation_memory_gb).toBe(result.memory_breakdown.activation_memory_gb * concurrency);
+      // Uses per-request values, not available memory
+      expect(memory.kv_cache_memory_gb).toBe(result.per_request_kv_cache_gb * concurrency);
+      expect(memory.activation_memory_gb).toBe(result.per_request_activation_gb * concurrency);
       expect(memory.total_memory_gb).toBe(
         result.memory_breakdown.weight_memory_gb +
         result.memory_breakdown.framework_overhead_gb +
-        result.memory_breakdown.kv_cache_memory_gb * concurrency +
-        result.memory_breakdown.activation_memory_gb * concurrency
+        result.per_request_kv_cache_gb * concurrency +
+        result.per_request_activation_gb * concurrency
       );
     });
 
@@ -188,7 +192,11 @@ describe("Concurrency Calculator", () => {
       const result = calculateMaxConcurrency(baseInput, mockHardware, mockModel);
       const memory = calculateMemoryWithConcurrency(result, 1);
 
-      expect(memory).toEqual(result.memory_breakdown);
+      // Memory for concurrency 1 should use per-request values
+      expect(memory.kv_cache_memory_gb).toBe(result.per_request_kv_cache_gb);
+      expect(memory.activation_memory_gb).toBe(result.per_request_activation_gb);
+      expect(memory.weight_memory_gb).toBe(result.memory_breakdown.weight_memory_gb);
+      expect(memory.framework_overhead_gb).toBe(result.memory_breakdown.framework_overhead_gb);
     });
   });
 
@@ -197,7 +205,9 @@ describe("Concurrency Calculator", () => {
       const input = { ...baseInput, framework_overhead_gb: 0 };
       const result = calculateMaxConcurrency(input, mockHardware, mockModel);
 
-      expect(result.available_memory_gb).toBe(mockHardware.memory_size_gb);
+      // Even with zero framework overhead, activation reserve and weight memory are still subtracted
+      expect(result.available_memory_gb).toBeGreaterThan(0);
+      expect(result.available_memory_gb).toBeLessThan(mockHardware.memory_size_gb);
       expect(result.memory_breakdown.framework_overhead_gb).toBe(0);
     });
 

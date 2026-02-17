@@ -53,7 +53,12 @@ export function ConcurrencyResults({ result }: ConcurrencyResultsProps) {
   }, []);
 
   // Use translations only after mounted, otherwise use default English
-  const tt = mounted && isHydrated ? t : ((key: string) => defaultTranslations[key] || key);
+  const tt = ((key: string) => {
+    if (mounted && isHydrated) {
+      return t(key as any);
+    }
+    return defaultTranslations[key] || key;
+  });
 
   if (!result) {
     return (
@@ -84,7 +89,9 @@ export function ConcurrencyResults({ result }: ConcurrencyResultsProps) {
 
   const weightMemory = result.memory_breakdown.weight_memory_gb;
   const frameworkOverhead = result.input.framework_overhead_gb * gpuCount;
-  const activationReserve = result.input.activation_reserve_gb;
+  // Calculate activation reserve from GPU utilization (with fallback for old data)
+  const gpuUtilization = result.input.gpu_utilization ?? 0.9;
+  const activationReserve = (1 - gpuUtilization) * totalMemory;
 
   const availableKvCache = result.available_memory_gb;
   const singleConcurrencyKvCache = result.per_request_kv_cache_gb;

@@ -270,25 +270,35 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
 
           <Separator />
 
-          {/* Activation Reserve */}
+          {/* GPU Utilization */}
           <div className="space-y-4">
             <Label className="flex items-center gap-2 text-sm font-medium">
               <Zap className="h-4 w-4 text-muted-foreground" />
-              {tt("activationReserve", "Activation Reserve")}
+              {tt("gpuUtilization", "GPU Utilization")}
             </Label>
-            <Input
-              id="activation_reserve"
-              type="number"
-              min={0}
-              step={0.5}
-              value={concurrencyInput.activation_reserve_gb}
-              onChange={(e) =>
-                setConcurrencyInput({
-                  ...concurrencyInput,
-                  activation_reserve_gb: Number(e.target.value),
-                })
-              }
-            />
+            <div className="flex items-center gap-4">
+              <Input
+                id="gpu_utilization"
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={concurrencyInput.gpu_utilization ?? 0.9}
+                onChange={(e) =>
+                  setConcurrencyInput({
+                    ...concurrencyInput,
+                    gpu_utilization: Math.min(1, Math.max(0, Number(e.target.value))),
+                  })
+                }
+                className="flex-1"
+              />
+              <span className="text-sm text-muted-foreground w-12">
+                {((concurrencyInput.gpu_utilization ?? 0.9) * 100).toFixed(0)}%
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              激活预留 = (1 - GPU利用率) × 总显存
+            </p>
           </div>
 
           <Separator />

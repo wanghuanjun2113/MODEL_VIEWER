@@ -175,7 +175,7 @@ const defaultConcurrencyInput: ConcurrencyInput = {
   context_length: 4096,
   attention_precision: "FP16",
   framework_overhead_gb: 2,
-  activation_reserve_gb: 5,
+  gpu_utilization: 0.9,  // 90% GPU utilization, 10% reserved for activations
 };
 
 interface MFUStore {
@@ -507,6 +507,17 @@ export const useMFUStore = create<MFUStore>()(
     {
       name: "mfu-calculator-storage",
       storage: createJSONStorage(() => localStorage),
+      migrate: (persistedState: unknown) => {
+        const state = persistedState as Record<string, unknown>;
+        // Ensure concurrencyInput has gpu_utilization field (migration for old stored data)
+        if (state?.concurrencyInput && typeof state.concurrencyInput === 'object') {
+          const input = state.concurrencyInput as Record<string, unknown>;
+          if (input.gpu_utilization === undefined) {
+            input.gpu_utilization = 0.9; // Default to 90%
+          }
+        }
+        return state;
+      },
     }
   )
 );
