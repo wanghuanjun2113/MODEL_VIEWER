@@ -2,9 +2,9 @@
 
 import React from "react"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMFUStore } from "@/lib/store";
-import { useLanguageStore } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n";
 import { generateUUID } from "@/lib/utils";
 import type { Hardware, HardwareFormData } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,35 @@ import {
 import { Plus, Pencil, Trash2, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 
+// Default English translations for SSR
+const defaultTranslations: Record<string, string> = {
+  nameRequired: "Name is required",
+  hardwareAdded: "Hardware added",
+  hardwareUpdated: "Hardware updated",
+  hardwareDeleted: "Hardware deleted",
+  templateDownloaded: "Template downloaded",
+  importHardwareSuccess: "Imported hardware",
+  importHardwareFailed: "Failed to parse CSV file",
+  downloadTemplate: "Download Template",
+  import: "Import",
+  addHardware: "Add Hardware",
+  cancel: "Cancel",
+  editHardware: "Edit Hardware",
+  editHardwareDesc: "Update hardware configuration for MFU calculations.",
+  save: "Save",
+  deleteHardware: "Delete Hardware",
+  deleteHardwareConfirm: "Are you sure you want to delete this hardware? This action cannot be undone.",
+  delete: "Delete",
+  name: "Name",
+  memorySize: "Memory Size (GB)",
+  memoryBandwidth: "Memory Bandwidth (TB/s)",
+  actions: "Actions",
+  fp16PeakTflops: "FP16 Peak (TFLOPS)",
+  bf16PeakTflops: "BF32 Peak (TFLOPS)",
+  int8PeakTops: "INT8 Peak (TOPS)",
+  hardwareConfigDesc: "Manage GPU and accelerator specifications for MFU calculations.",
+};
+
 const emptyFormData: HardwareFormData = {
   name: "",
   fp16_peak_tflops: 0,
@@ -53,36 +82,55 @@ const emptyFormData: HardwareFormData = {
 export function HardwareTable() {
   const { hardware, addHardware, updateHardware, deleteHardware, importHardware } =
     useMFUStore();
-  const { t } = useLanguageStore();
+  const { t, isHydrated } = useLanguage();
+  const [mounted, setMounted] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingHardware, setEditingHardware] = useState<Hardware | null>(null);
   const [formData, setFormData] = useState<HardwareFormData>(emptyFormData);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use translations only after mounted, otherwise use default English
+  const tt = (key: string, params?: Record<string, string | number>): string => {
+    if (mounted && isHydrated) {
+      return t(key as any, params);
+    }
+    let text = defaultTranslations[key] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
+
   const handleAdd = () => {
     if (!formData.name) {
-      toast.error(t("nameRequired"));
+      toast.error(tt("nameRequired"));
       return;
     }
     addHardware(formData);
     setFormData(emptyFormData);
     setIsAddOpen(false);
-    toast.success(t("hardwareAdded"));
+    toast.success(tt("hardwareAdded"));
   };
 
   const handleEdit = () => {
     if (!editingHardware || !formData.name) {
-      toast.error(t("nameRequired"));
+      toast.error(tt("nameRequired"));
       return;
     }
     updateHardware(editingHardware.id, formData);
     setEditingHardware(null);
     setFormData(emptyFormData);
-    toast.success(t("hardwareUpdated"));
+    toast.success(tt("hardwareUpdated"));
   };
 
   const handleDelete = (id: string) => {
     deleteHardware(id);
-    toast.success(t("hardwareDeleted"));
+    toast.success(tt("hardwareDeleted"));
   };
 
   const handleExport = () => {
@@ -109,7 +157,7 @@ export function HardwareTable() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success(t("templateDownloaded"));
+    toast.success(tt("templateDownloaded"));
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,9 +192,9 @@ export function HardwareTable() {
         });
 
         importHardware(items);
-        toast.success(t("importHardwareSuccess", { count: items.length }));
+        toast.success(tt("importHardwareSuccess", { count: items.length }));
       } catch {
-        toast.error(t("importHardwareFailed"));
+        toast.error(tt("importHardwareFailed"));
       }
     };
     reader.readAsText(file);
@@ -171,7 +219,7 @@ export function HardwareTable() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
-            {t("downloadTemplate")}
+            {tt("downloadTemplate")}
           </Button>
           <div className="relative">
             <input
@@ -182,7 +230,7 @@ export function HardwareTable() {
             />
             <Button variant="outline" size="sm">
               <Upload className="mr-2 h-4 w-4" />
-              {t("import")}
+              {tt("import")}
             </Button>
           </div>
         </div>
@@ -191,22 +239,22 @@ export function HardwareTable() {
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
-              {t("addHardware")}
+              {tt("addHardware")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t("addHardware")}</DialogTitle>
+              <DialogTitle>{tt("addHardware")}</DialogTitle>
               <DialogDescription>
-                {t("hardwareConfigDesc")}
+                {tt("hardwareConfigDesc")}
               </DialogDescription>
             </DialogHeader>
-            <HardwareForm formData={formData} setFormData={setFormData} />
+            <HardwareForm formData={formData} setFormData={setFormData} tt={tt} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>
-                {t("cancel")}
+                {tt("cancel")}
               </Button>
-              <Button onClick={handleAdd}>{t("addHardware")}</Button>
+              <Button onClick={handleAdd}>{tt("addHardware")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -216,13 +264,13 @@ export function HardwareTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("name")}</TableHead>
+              <TableHead>{tt("name")}</TableHead>
               <TableHead className="text-right">FP16</TableHead>
               <TableHead className="text-right">BF16</TableHead>
               <TableHead className="text-right">INT8</TableHead>
-              <TableHead className="text-right">{t("memorySize")}</TableHead>
-              <TableHead className="text-right">{t("memoryBandwidth")}</TableHead>
-              <TableHead className="w-[100px]">{t("actions")}</TableHead>
+              <TableHead className="text-right">{tt("memorySize")}</TableHead>
+              <TableHead className="text-right">{tt("memoryBandwidth")}</TableHead>
+              <TableHead className="w-[100px]">{tt("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -267,12 +315,12 @@ export function HardwareTable() {
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>{t("editHardware")}</DialogTitle>
+                          <DialogTitle>{tt("editHardware")}</DialogTitle>
                           <DialogDescription>
-                            {t("editHardwareDesc")}
+                            {tt("editHardwareDesc")}
                           </DialogDescription>
                         </DialogHeader>
-                        <HardwareForm formData={formData} setFormData={setFormData} />
+                        <HardwareForm formData={formData} setFormData={setFormData} tt={tt} />
                         <DialogFooter>
                           <Button
                             variant="outline"
@@ -281,9 +329,9 @@ export function HardwareTable() {
                               setFormData(emptyFormData);
                             }}
                           >
-                            {t("cancel")}
+                            {tt("cancel")}
                           </Button>
-                          <Button onClick={handleEdit}>{t("save")}</Button>
+                          <Button onClick={handleEdit}>{tt("save")}</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
@@ -296,15 +344,15 @@ export function HardwareTable() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>{t("deleteHardware")}</AlertDialogTitle>
+                          <AlertDialogTitle>{tt("deleteHardware")}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            {t("deleteHardwareConfirm")}
+                            {tt("deleteHardwareConfirm")}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+                          <AlertDialogCancel>{tt("cancel")}</AlertDialogCancel>
                           <AlertDialogAction onClick={() => handleDelete(h.id)}>
-                            {t("delete")}
+                            {tt("delete")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -323,14 +371,14 @@ export function HardwareTable() {
 interface HardwareFormProps {
   formData: HardwareFormData;
   setFormData: (data: HardwareFormData) => void;
+  tt: (key: string, params?: Record<string, string | number>) => string;
 }
 
-function HardwareForm({ formData, setFormData }: HardwareFormProps) {
-  const { t } = useLanguageStore();
+function HardwareForm({ formData, setFormData, tt }: HardwareFormProps) {
   return (
     <div className="grid gap-4 py-4">
       <div className="space-y-2">
-        <Label htmlFor="name">{t("name")}</Label>
+        <Label htmlFor="name">{tt("name")}</Label>
         <Input
           id="name"
           value={formData.name}
@@ -340,7 +388,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="fp16">{t("fp16PeakTflops")}</Label>
+          <Label htmlFor="fp16">{tt("fp16PeakTflops")}</Label>
           <Input
             id="fp16"
             type="number"
@@ -351,7 +399,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="bf16">{t("bf16PeakTflops")}</Label>
+          <Label htmlFor="bf16">{tt("bf16PeakTflops")}</Label>
           <Input
             id="bf16"
             type="number"
@@ -364,7 +412,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="int8">{t("int8PeakTops")}</Label>
+          <Label htmlFor="int8">{tt("int8PeakTops")}</Label>
           <Input
             id="int8"
             type="number"
@@ -375,7 +423,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="memory">{t("memorySize")}</Label>
+          <Label htmlFor="memory">{tt("memorySize")}</Label>
           <Input
             id="memory"
             type="number"
@@ -387,7 +435,7 @@ function HardwareForm({ formData, setFormData }: HardwareFormProps) {
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="bandwidth">{t("memoryBandwidth")}</Label>
+        <Label htmlFor="bandwidth">{tt("memoryBandwidth")}</Label>
         <Input
           id="bandwidth"
           type="number"
