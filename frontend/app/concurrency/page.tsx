@@ -38,7 +38,7 @@ export default function ConcurrencyPage() {
           </p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
+        <div className="grid gap-8 lg:grid-cols-[60%_40%]">
           <div className="space-y-8">
             <ConcurrencyForm onCalculate={handleCalculate} />
             <ConcurrencyComparisonTable />

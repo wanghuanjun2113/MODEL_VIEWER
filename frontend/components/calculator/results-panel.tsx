@@ -95,49 +95,57 @@ export function ResultsPanel() {
   if (!latestResult) {
     return (
       <div className="space-y-4">
-        <MetricCard
-          title={tt("mfu")}
-          icon={<Activity className="h-5 w-5" />}
-          value="--"
-          unit="%"
-          description={tt("mfu")}
+        <PhaseMetricCard
+          title="Prefill 阶段"
+          icon={<Zap className="h-5 w-5" />}
+          mfu="--"
+          bandwidth="--"
+          description="首Token生成阶段"
         />
-        <MetricCard
-          title={tt("memoryBandwidthUtilization")}
-          icon={<HardDrive className="h-5 w-5" />}
-          value="--"
-          unit="%"
-          description={tt("memoryBandwidthUtilization")}
+        <PhaseMetricCard
+          title="Decode 阶段"
+          icon={<Activity className="h-5 w-5" />}
+          mfu="--"
+          bandwidth="--"
+          description="后续Token生成阶段"
         />
         <SuggestionsCard tt={tt} suggestions={[]} />
       </div>
     );
   }
 
-  const mfuStatus = getMFUStatus(latestResult.mfu);
-  const bandwidthStatus = getBandwidthStatus(latestResult.memory_bandwidth_utilization);
+  // Phase-specific status
+  const prefillMfuStatus = getMFUStatus(latestResult.prefill_mfu);
+  const prefillBandwidthStatus = getBandwidthStatus(latestResult.prefill_bandwidth_utilization);
+  const decodeMfuStatus = getMFUStatus(latestResult.decode_mfu);
+  const decodeBandwidthStatus = getBandwidthStatus(latestResult.decode_bandwidth_utilization);
 
   return (
     <div className="space-y-4">
-      <MetricCard
-        title={tt("mfu")}
-        icon={<Activity className="h-5 w-5" />}
-        value={latestResult.mfu.toFixed(2)}
-        unit="%"
-        description={tt("mfu")}
-        progress={latestResult.mfu}
-        status={mfuStatus}
-        infoDialog={<MfuFormulaDialog result={latestResult} tt={tt} />}
+      {/* Prefill 阶段 */}
+      <PhaseMetricCard
+        title="Prefill 阶段"
+        icon={<Zap className="h-5 w-5" />}
+        mfu={latestResult.prefill_mfu.toFixed(2)}
+        bandwidth={latestResult.prefill_bandwidth_utilization.toFixed(2)}
+        description="首Token生成阶段 (Context Processing)"
+        mfuStatus={prefillMfuStatus}
+        bandwidthStatus={prefillBandwidthStatus}
+        infoDialog={<MfuFormulaDialog result={latestResult} tt={tt} phase="prefill" />}
+        bandwidthInfoDialog={<BandwidthFormulaDialog result={latestResult} tt={tt} phase="prefill" />}
       />
-      <MetricCard
-        title={tt("memoryBandwidthUtilization")}
-        icon={<HardDrive className="h-5 w-5" />}
-        value={latestResult.memory_bandwidth_utilization.toFixed(2)}
-        unit="%"
-        description={tt("memoryBandwidthUtilization")}
-        progress={latestResult.memory_bandwidth_utilization}
-        status={bandwidthStatus}
-        infoDialog={<BandwidthFormulaDialog result={latestResult} tt={tt} />}
+
+      {/* Decode 阶段 */}
+      <PhaseMetricCard
+        title="Decode 阶段"
+        icon={<Activity className="h-5 w-5" />}
+        mfu={latestResult.decode_mfu.toFixed(2)}
+        bandwidth={latestResult.decode_bandwidth_utilization.toFixed(2)}
+        description="后续Token生成阶段 (Token Generation)"
+        mfuStatus={decodeMfuStatus}
+        bandwidthStatus={decodeBandwidthStatus}
+        infoDialog={<MfuFormulaDialog result={latestResult} tt={tt} phase="decode" />}
+        bandwidthInfoDialog={<BandwidthFormulaDialog result={latestResult} tt={tt} phase="decode" />}
       />
 
       <Card>
@@ -249,6 +257,79 @@ function MetricCard({
   );
 }
 
+// Phase Metric Card - displays MFU and Bandwidth for a phase
+interface PhaseMetricCardProps {
+  title: string;
+  icon: React.ReactNode;
+  mfu: string;
+  bandwidth: string;
+  description: string;
+  mfuStatus?: "good" | "warning" | "critical";
+  bandwidthStatus?: "good" | "warning" | "critical";
+  infoDialog?: React.ReactNode;
+  bandwidthInfoDialog?: React.ReactNode;
+}
+
+function PhaseMetricCard({
+  title,
+  icon,
+  mfu,
+  bandwidth,
+  description,
+  mfuStatus,
+  bandwidthStatus,
+  infoDialog,
+  bandwidthInfoDialog,
+}: PhaseMetricCardProps) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            {icon}
+            <span className="text-sm font-medium">{title}</span>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">{description}</p>
+
+        <div className="space-y-4">
+          {/* MFU 指标 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium">MFU</span>
+                {infoDialog}
+              </div>
+              {mfuStatus && <StatusIndicator status={mfuStatus} />}
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tracking-tight">{mfu}</span>
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* 显存带宽利用率 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium">显存带宽利用率</span>
+                {bandwidthInfoDialog}
+              </div>
+              {bandwidthStatus && <StatusIndicator status={bandwidthStatus} />}
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tracking-tight">{bandwidth}</span>
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StatusIndicator({ status }: { status: "good" | "warning" | "critical" }) {
   const { t, isHydrated } = useLanguage();
   const [mounted, setMounted] = useState(false);
@@ -314,6 +395,7 @@ function SuggestionsCard({ suggestions, tt }: { suggestions: string[]; tt: (key:
 interface MfuFormulaDialogProps {
   result: CalculationResult;
   tt: (key: string) => string;
+  phase?: "prefill" | "decode";
 }
 
 function MfuFormulaDialog({ result, tt }: MfuFormulaDialogProps) {
@@ -546,6 +628,7 @@ function MfuFormulaDialog({ result, tt }: MfuFormulaDialogProps) {
 interface BandwidthFormulaDialogProps {
   result: CalculationResult;
   tt: (key: string) => string;
+  phase?: "prefill" | "decode";
 }
 
 function BandwidthFormulaDialog({ result, tt }: BandwidthFormulaDialogProps) {

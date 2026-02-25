@@ -2,9 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ..database import get_db
+from ..models import CalculationHistory
 from ..crud import hardware as hardware_crud
 from ..crud import model as model_crud
 from ..schemas import (
@@ -12,6 +13,7 @@ from ..schemas import (
     CalculationResponse,
     CalculationResult,
     OptimizationSuggestion,
+    CalculationHistoryResponse,
 )
 from ..services import mfu_calculator, optimizer
 
@@ -104,6 +106,10 @@ def calculate_mfu(input_data: CalculationInput, db: Session = Depends(get_db)):
         calculation_result = CalculationResult(
             mfu=result["mfu"],
             memory_bandwidth_utilization=result["memory_bandwidth_utilization"],
+            prefill_mfu=result["prefill_mfu"],
+            prefill_bandwidth_utilization=result["prefill_bandwidth_utilization"],
+            decode_mfu=result["decode_mfu"],
+            decode_bandwidth_utilization=result["decode_bandwidth_utilization"],
             theoretical_flops=result["theoretical_flops"],
             actual_flops=result["actual_flops"],
             peak_flops=result["peak_flops"],
@@ -119,6 +125,16 @@ def calculate_mfu(input_data: CalculationInput, db: Session = Depends(get_db)):
         optimization_suggestions = [
             OptimizationSuggestion(**s) for s in suggestions
         ]
+
+        # 7. 保存计算历史
+        history = CalculationHistory(
+            hardware_id=input_data.hardware_id,
+            model_id=input_data.model_id,
+            input_params=calc_input,
+            result=result,
+        )
+        db.add(history)
+        db.commit()
 
         return CalculationResponse(
             success=True,
@@ -140,3 +156,37 @@ def calculate_mfu(input_data: CalculationInput, db: Session = Depends(get_db)):
 def get_bottleneck_description(bottleneck_type: str):
     """获取瓶颈类型的中文描述"""
     return {"description": optimizer.OptimizationEngine().get_bottleneck_description(bottleneck_type)}
+
+
+@router.get("/history", response_model=List[CalculationHistoryResponse])
+def get_calculation_history(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """获取 MFU 计算历史记录"""
+    history = db.query(CalculationHistory)\
+        .order_by(CalculationHistory.created_at.desc())\
+        .offset(offset)\
+        .limit(limit)\
+        .all()
+    return history
+
+
+@router.delete("/history/{history_id}")
+def delete_calculation_history(history_id: int, db: Session = Depends(get_db)):
+    """删除 MFU 计算历史记录"""
+    history = db.query(CalculationHistory).filter(CalculationHistory.id == history_id).first()
+    if not history:
+        raise HTTPException(status_code=404, detail="History not found")
+    db.delete(history)
+    db.commit()
+    return {"message": "History deleted successfully"}
+
+
+@router.delete("/history")
+def clear_calculation_history(db: Session = Depends(get_db)):
+    """清空所有 MFU 计算历史记录"""
+    db.query(CalculationHistory).delete()
+    db.commit()
+    return {"message": "All history cleared successfully"}

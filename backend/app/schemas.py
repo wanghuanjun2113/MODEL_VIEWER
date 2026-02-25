@@ -75,6 +75,8 @@ class HardwareImportResponse(BaseModel):
 class ModelBase(BaseModel):
     """模型基础 Schema"""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     name: str = Field(..., min_length=1, max_length=255)
     huggingface_id: str = Field(..., min_length=1, max_length=500)
     params_billions: float = Field(..., ge=0, description="参数量 (Billion)")
@@ -99,6 +101,8 @@ class ModelCreate(ModelBase):
 class ModelUpdate(BaseModel):
     """更新模型 Schema"""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     huggingface_id: Optional[str] = Field(None, min_length=1, max_length=500)
     params_billions: Optional[float] = Field(None, ge=0)
@@ -122,11 +126,13 @@ class ModelResponse(ModelBase):
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class HuggingFacePreviewResponse(BaseModel):
     """Hugging Face 预览响应 Schema"""
+
+    model_config = ConfigDict(protected_namespaces=())
 
     huggingface_id: str
     name: str
@@ -190,9 +196,17 @@ class CalculationResult(BaseModel):
 
     model_config = ConfigDict(protected_namespaces=())
 
-    # 核心指标
+    # 核心指标 (总体)
     mfu: float = Field(..., description="Model FLOPs Utilization (%)")
     memory_bandwidth_utilization: float = Field(..., description="显存带宽使用率 (%)")
+
+    # Prefill 阶段指标
+    prefill_mfu: float = Field(..., description="Prefill 阶段 MFU (%)")
+    prefill_bandwidth_utilization: float = Field(..., description="Prefill 阶段显存带宽使用率 (%)")
+
+    # Decode 阶段指标
+    decode_mfu: float = Field(..., description="Decode 阶段 MFU (%)")
+    decode_bandwidth_utilization: float = Field(..., description="Decode 阶段显存带宽使用率 (%)")
 
     # 详细指标
     theoretical_flops: float = Field(..., description="理论算力需求 (TFLOPS)")
@@ -267,12 +281,14 @@ class PaginatedResponse(BaseModel):
 class ConcurrencyInput(BaseModel):
     """并发计算输入 Schema"""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     hardware_id: int = Field(..., description="硬件 ID")
     model_id: int = Field(..., description="模型 ID")
     gpu_count: int = Field(default=1, ge=1, le=32, description="GPU 数量 (1, 2, 4, 8, 16, 32)")
     context_length: int = Field(default=4096, gt=0, description="上下文长度 (tokens)")
     precision: PrecisionTypeEnum = Field(default=PrecisionTypeEnum.FP16, description="计算精度")
-    framework_overhead_gb: float = Field(default=2.0, ge=0, description="框架开销 (GB)")
+    framework_overhead_gb: float = Field(default=8.0, ge=0, description="系统框架开销 (GB)")
 
 
 class MemoryBreakdown(BaseModel):
@@ -302,3 +318,31 @@ class ConcurrencyResponse(BaseModel):
     success: bool
     result: Optional[ConcurrencyResult] = None
     error: Optional[str] = None
+
+
+# ============ History Schemas ============
+
+class CalculationHistoryResponse(BaseModel):
+    """MFU计算历史响应 Schema"""
+
+    id: int
+    hardware_id: int
+    model_id: int
+    input_params: dict
+    result: dict
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
+
+
+class ConcurrencyHistoryResponse(BaseModel):
+    """并发计算历史响应 Schema"""
+
+    id: int
+    hardware_id: int
+    model_id: int
+    input_params: dict
+    result: dict
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())

@@ -24,14 +24,6 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Calculator, Cpu, Layers, Database, Settings, Grid3X3, Zap } from "lucide-react";
 
-// Framework overhead presets
-const FRAMEWORK_PRESETS = [
-  { label: "vLLM", value: 2 },
-  { label: "TensorRT-LLM", value: 1 },
-  { label: "TGI", value: 1.5 },
-  { label: "自定义", value: 0 },
-] as const;
-
 interface ConcurrencyFormProps {
   onCalculate: () => void;
 }
@@ -46,20 +38,9 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
     setMounted(true);
   }, []);
 
-  const [frameworkPreset, setFrameworkPreset] = useState<"vLLM" | "TensorRT-LLM" | "TGI" | "自定义">("vLLM");
-
-  const handleFrameworkPresetChange = (preset: string) => {
-    setFrameworkPreset(preset as "vLLM" | "TensorRT-LLM" | "TGI" | "自定义");
-    const presetValue = FRAMEWORK_PRESETS.find((p) => p.label === preset)?.value ?? 0;
-    setConcurrencyInput({ ...concurrencyInput, framework_overhead_gb: presetValue });
-  };
-
   const handleFrameworkOverheadChange = (value: string) => {
     const numValue = Number(value);
     setConcurrencyInput({ ...concurrencyInput, framework_overhead_gb: isNaN(numValue) ? 0 : numValue });
-    if (frameworkPreset !== "自定义") {
-      setFrameworkPreset("自定义");
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -226,46 +207,22 @@ export function ConcurrencyForm({ onCalculate }: ConcurrencyFormProps) {
 
           <Separator />
 
-          {/* Framework Overhead */}
+          {/* 系统框架开销 */}
           <div className="space-y-4">
             <Label className="flex items-center gap-2 text-sm font-medium">
               <Calculator className="h-4 w-4 text-muted-foreground" />
-              {tt("frameworkOverhead", "Framework Overhead")}
+              系统框架开销 (GB)
             </Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">
-                  {tt("frameworkPreset", "Framework Preset")}
-                </Label>
-                <Select
-                  value={frameworkPreset}
-                  onValueChange={handleFrameworkPresetChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FRAMEWORK_PRESETS.map((preset) => (
-                      <SelectItem key={preset.label} value={preset.label}>
-                        {preset.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">
-                  {tt("overheadGb", "Overhead (GB)")}
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  value={concurrencyInput.framework_overhead_gb}
-                  onChange={(e) => handleFrameworkOverheadChange(e.target.value)}
-                />
-              </div>
-            </div>
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              value={concurrencyInput.framework_overhead_gb ?? 8}
+              onChange={(e) => handleFrameworkOverheadChange(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              系统框架开销包括推理引擎、CUDA上下文等占用，默认8GB
+            </p>
           </div>
 
           <Separator />

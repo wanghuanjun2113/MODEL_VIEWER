@@ -14,139 +14,133 @@ import type {
   ConcurrencyResult,
 } from "./types";
 
-// Default hardware presets
+// Default hardware presets - 昇腾系列
 const defaultHardware: Hardware[] = [
   {
     id: "1",
-    name: "NVIDIA A100 40GB",
-    fp16_peak_tflops: 312,
-    bf16_peak_tflops: 312,
-    int8_peak_tops: 624,
-    memory_size_gb: 40,
-    memory_bandwidth_tbps: 1.555,
+    name: "昇腾910B4 32G",
+    fp16_peak_tflops: 280,
+    bf16_peak_tflops: 140,
+    int8_peak_tops: 560,
+    memory_size_gb: 32,
+    memory_bandwidth_tbps: 1.0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: "2",
-    name: "NVIDIA A100 80GB",
-    fp16_peak_tflops: 312,
-    bf16_peak_tflops: 312,
-    int8_peak_tops: 624,
-    memory_size_gb: 80,
-    memory_bandwidth_tbps: 2.039,
+    name: "昇腾910B4-1 64G",
+    fp16_peak_tflops: 280,
+    bf16_peak_tflops: 140,
+    int8_peak_tops: 560,
+    memory_size_gb: 64,
+    memory_bandwidth_tbps: 1.2,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: "3",
-    name: "NVIDIA H100 SXM",
-    fp16_peak_tflops: 1979,
-    bf16_peak_tflops: 1979,
-    int8_peak_tops: 3958,
-    memory_size_gb: 80,
-    memory_bandwidth_tbps: 3.35,
+    name: "昇腾300I Duo 96G",
+    fp16_peak_tflops: 140,
+    bf16_peak_tflops: 70,
+    int8_peak_tops: 280,
+    memory_size_gb: 96,
+    memory_bandwidth_tbps: 0.408,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: "4",
-    name: "NVIDIA RTX 4090",
-    fp16_peak_tflops: 330,
-    bf16_peak_tflops: 330,
-    int8_peak_tops: 660,
-    memory_size_gb: 24,
-    memory_bandwidth_tbps: 1.008,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "5",
-    name: "NVIDIA L40S",
-    fp16_peak_tflops: 362,
-    bf16_peak_tflops: 362,
-    int8_peak_tops: 724,
+    name: "昇腾300v Pro 48G",
+    fp16_peak_tflops: 140,
+    bf16_peak_tflops: 70,
+    int8_peak_tops: 280,
     memory_size_gb: 48,
-    memory_bandwidth_tbps: 0.864,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "6",
-    name: "NVIDIA T4",
-    fp16_peak_tflops: 65,
-    bf16_peak_tflops: 65,
-    int8_peak_tops: 130,
-    memory_size_gb: 16,
-    memory_bandwidth_tbps: 0.32,
+    memory_bandwidth_tbps: 0.408,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
 ];
 
-// Default model presets
+// Default model presets - Qwen3, DeepSeek, Magistral 系列
 const defaultModels: Model[] = [
   {
     id: "1",
-    name: "Llama 2 7B",
-    huggingface_id: "meta-llama/Llama-2-7b-hf",
-    params_billions: 7,
-    num_layers: 32,
-    hidden_size: 4096,
+    name: "Qwen3-30B-A3B",
+    huggingface_id: "Qwen/Qwen3-30B-A3B",
+    params_billions: 30.5,
+    num_layers: 48,
+    hidden_size: 2048,
     num_attention_heads: 32,
-    num_key_value_heads: 32,
-    vocab_size: 32000,
-    intermediate_size: 11008,
+    num_key_value_heads: 4,
+    vocab_size: 151936,
+    intermediate_size: 6144,
     head_dim: 128,
-    max_position_embeddings: 4096,
+    max_position_embeddings: 32768,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: "2",
-    name: "Llama 2 13B",
-    huggingface_id: "meta-llama/Llama-2-13b-hf",
-    params_billions: 13,
-    num_layers: 40,
+    name: "Qwen3-32B",
+    huggingface_id: "Qwen/Qwen3-32B",
+    params_billions: 32,
+    num_layers: 64,
     hidden_size: 5120,
     num_attention_heads: 40,
-    num_key_value_heads: 40,
-    vocab_size: 32000,
-    intermediate_size: 13824,
+    num_key_value_heads: 8,
+    vocab_size: 151936,
+    intermediate_size: 27648,
     head_dim: 128,
-    max_position_embeddings: 4096,
+    max_position_embeddings: 40960,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: "3",
-    name: "Llama 2 70B",
-    huggingface_id: "meta-llama/Llama-2-70b-hf",
-    params_billions: 70,
-    num_layers: 80,
-    hidden_size: 8192,
-    num_attention_heads: 64,
+    name: "Qwen3-8B",
+    huggingface_id: "Qwen/Qwen3-8B",
+    params_billions: 8,
+    num_layers: 36,
+    hidden_size: 4096,
+    num_attention_heads: 32,
     num_key_value_heads: 8,
-    vocab_size: 32000,
-    intermediate_size: 28672,
+    vocab_size: 151936,
+    intermediate_size: 12288,
     head_dim: 128,
-    max_position_embeddings: 4096,
+    max_position_embeddings: 32768,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: "4",
-    name: "Qwen 2 7B",
-    huggingface_id: "Qwen/Qwen2-7B",
-    params_billions: 7,
-    num_layers: 28,
-    hidden_size: 3584,
-    num_attention_heads: 28,
-    num_key_value_heads: 4,
-    vocab_size: 152064,
-    intermediate_size: 18944,
+    name: "DeepSeek-V3.2",
+    huggingface_id: "deepseek-ai/DeepSeek-V3.2",
+    params_billions: 685,
+    num_layers: 61,
+    hidden_size: 7168,
+    num_attention_heads: 128,
+    num_key_value_heads: 128,
+    vocab_size: 129280,
+    intermediate_size: 2048,
     head_dim: 128,
-    max_position_embeddings: 131072,
+    max_position_embeddings: 163840,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "5",
+    name: "Magistral-Small-2509",
+    huggingface_id: "mistralai/Magistral-Small-2509",
+    params_billions: 24,
+    num_layers: 28,
+    hidden_size: 6144,
+    num_attention_heads: 48,
+    num_key_value_heads: 8,
+    vocab_size: 32768,
+    intermediate_size: 16384,
+    head_dim: 128,
+    max_position_embeddings: 32768,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -174,7 +168,7 @@ const defaultConcurrencyInput: ConcurrencyInput = {
   gpu_count: 1,
   context_length: 4096,
   attention_precision: "FP16",
-  framework_overhead_gb: 2,
+  framework_overhead_gb: 8,  // 系统框架开销默认8G
   gpu_utilization: 0.9,  // 90% GPU utilization, 10% reserved for activations
 };
 
@@ -183,6 +177,9 @@ interface MFUStore {
   useApi: boolean;
   setUseApi: (useApi: boolean) => void;
   isLoading: boolean;
+
+  // Version for migration
+  version: number;
 
   // Form input state (persisted)
   formInput: CalculationInput;
@@ -229,6 +226,9 @@ export const useMFUStore = create<MFUStore>()(
       useApi: false,
       isLoading: false,
       setUseApi: (useApi) => set({ useApi }),
+
+      // Version for migration
+      version: 3,
 
       // Form input state
       formInput: defaultFormInput,
@@ -506,14 +506,37 @@ export const useMFUStore = create<MFUStore>()(
     }),
     {
       name: "mfu-calculator-storage",
+      version: 3, // Increment this to trigger migration
       storage: createJSONStorage(() => localStorage),
-      migrate: (persistedState: unknown) => {
+      migrate: (persistedState: unknown, storedVersion: number) => {
+        // storedVersion is the version from localStorage (0 if not set)
+        // Current version is 3, so if storedVersion < 3, we need to migrate
+        console.log('Migrate called with storedVersion:', storedVersion);
+
+        if (storedVersion < 3) {
+          // Return a fresh state with new presets
+          // This completely replaces hardware and models with new presets
+          const oldState = persistedState as Record<string, unknown>;
+          return {
+            ...oldState,
+            hardware: defaultHardware,
+            models: defaultModels,
+            version: 3,
+            concurrencyInput: defaultConcurrencyInput,
+          };
+        }
+
         const state = persistedState as Record<string, unknown>;
+
         // Ensure concurrencyInput has gpu_utilization field (migration for old stored data)
         if (state?.concurrencyInput && typeof state.concurrencyInput === 'object') {
           const input = state.concurrencyInput as Record<string, unknown>;
           if (input.gpu_utilization === undefined) {
             input.gpu_utilization = 0.9; // Default to 90%
+          }
+          // Update framework_overhead_gb default to 8GB
+          if (input.framework_overhead_gb === undefined || input.framework_overhead_gb === 2) {
+            input.framework_overhead_gb = 8;
           }
         }
         return state;

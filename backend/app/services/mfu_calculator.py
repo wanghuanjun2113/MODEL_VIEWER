@@ -61,9 +61,17 @@ class CalculationInput:
 class CalculationOutput:
     """计算输出结果"""
 
-    # 核心指标
+    # 核心指标 (总体)
     mfu: float
     memory_bandwidth_utilization: float
+
+    # Prefill 阶段指标
+    prefill_mfu: float
+    prefill_bandwidth_utilization: float
+
+    # Decode 阶段指标
+    decode_mfu: float
+    decode_bandwidth_utilization: float
 
     # 详细指标
     theoretical_flops: float
@@ -145,18 +153,35 @@ class MFUCalculator:
         # 3. 总 FLOPs
         total_flops = prefill_flops + decode_flops
 
-        # 4. 实际算力 (FLOPs / time)
-        total_time_ms = input_data.first_token_latency_ms + \
-                       input_data.generated_length * input_data.tpot_ms
+        # 4. 计算时间
+        prefill_time_ms = input_data.first_token_latency_ms
+        decode_time_ms = input_data.generated_length * input_data.tpot_ms
+        total_time_ms = prefill_time_ms + decode_time_ms
+
+        prefill_time_seconds = prefill_time_ms / 1000.0
+        decode_time_seconds = decode_time_ms / 1000.0
         total_time_seconds = total_time_ms / 1000.0
 
-        # 避免除以零
-        if total_time_seconds <= 0:
-            actual_flops = peak_flops
+        # 5. 计算各阶段 MFU
+        # Prefill MFU
+        if prefill_time_seconds > 0:
+            prefill_actual_tflops = prefill_flops / prefill_time_seconds / 1e12
         else:
-            actual_flops = total_flops / total_time_seconds / 1e12  # TFLOPS
+            prefill_actual_tflops = peak_flops
+        prefill_mfu = (prefill_actual_tflops / peak_flops * 100) if peak_flops > 0 else 0
 
-        # 5. 计算 MFU
+        # Decode MFU
+        if decode_time_seconds > 0:
+            decode_actual_tflops = decode_flops / decode_time_seconds / 1e12
+        else:
+            decode_actual_tflops = peak_flops
+        decode_mfu = (decode_actual_tflops / peak_flops * 100) if peak_flops > 0 else 0
+
+        # 总体 MFU
+        if total_time_seconds > 0:
+            actual_flops = total_flops / total_time_seconds / 1e12
+        else:
+            actual_flops = peak_flops
         mfu = (actual_flops / peak_flops * 100) if peak_flops > 0 else 0
 
         # 6. 计算显存需求和带宽使用
@@ -169,14 +194,34 @@ class MFUCalculator:
         )
         model_memory_bytes = self._calculate_model_memory(model, input_data.precision)
 
-        # 带宽计算：基于时延和传输数据量
+        # Prefill 带宽使用率 (主要读取模型权重和输入嵌入)
+        prefill_bandwidth = self._calculate_prefill_bandwidth(
+            model_memory_bytes,
+            input_data.context_length,
+            prefill_time_ms
+        )
+        prefill_bandwidth_utilization = (
+            prefill_bandwidth / (hardware.memory_bandwidth_tbps * hardware.gpu_count) * 100
+        ) if hardware.memory_bandwidth_tbps > 0 else 0
+
+        # Decode 带宽使用率 (读取模型权重 + KV Cache)
+        decode_bandwidth = self._calculate_decode_bandwidth(
+            model_memory_bytes,
+            kv_cache_bytes,
+            input_data.generated_length,
+            decode_time_ms
+        )
+        decode_bandwidth_utilization = (
+            decode_bandwidth / (hardware.memory_bandwidth_tbps * hardware.gpu_count) * 100
+        ) if hardware.memory_bandwidth_tbps > 0 else 0
+
+        # 总体带宽使用率
         required_bandwidth = self._calculate_required_bandwidth(
             model_memory_bytes,
             kv_cache_bytes,
             total_time_ms,
             input_data.batch_size
         )
-
         memory_bandwidth_utilization = (
             required_bandwidth / (hardware.memory_bandwidth_tbps * hardware.gpu_count) * 100
         ) if hardware.memory_bandwidth_tbps > 0 else 0
@@ -194,7 +239,11 @@ class MFUCalculator:
 
         return CalculationOutput(
             mfu=round(mfu, 2),
+            prefill_mfu=round(prefill_mfu, 2),
+            decode_mfu=round(decode_mfu, 2),
             memory_bandwidth_utilization=round(memory_bandwidth_utilization, 2),
+            prefill_bandwidth_utilization=round(prefill_bandwidth_utilization, 2),
+            decode_bandwidth_utilization=round(decode_bandwidth_utilization, 2),
             theoretical_flops=round(total_flops / 1e12, 2),  # TFLOPS
             actual_flops=round(actual_flops, 2),
             peak_flops=round(peak_flops, 2),
@@ -379,6 +428,49 @@ class MFUCalculator:
 
         return total_tb / time_seconds
 
+    def _calculate_prefill_bandwidth(
+        self,
+        model_memory_bytes: float,
+        context_length: int,
+        prefill_time_ms: float
+    ) -> float:
+        """计算 Prefill 阶段所需显存带宽 (TB/s)
+
+        Prefill 阶段主要读取模型权重，输入嵌入相对较小
+        """
+        if prefill_time_ms <= 0:
+            return 0
+
+        # Prefill 主要传输模型权重
+        total_tb = model_memory_bytes / 1e12
+        time_seconds = prefill_time_ms / 1000
+
+        return total_tb / time_seconds
+
+    def _calculate_decode_bandwidth(
+        self,
+        model_memory_bytes: float,
+        kv_cache_bytes: float,
+        generated_length: int,
+        decode_time_ms: float
+    ) -> float:
+        """计算 Decode 阶段所需显存带宽 (TB/s)
+
+        Decode 阶段每个 token 需要读取模型权重 + 增量的 KV Cache
+        """
+        if decode_time_ms <= 0 or generated_length <= 0:
+            return 0
+
+        # Decode 每个token需要读取模型权重 + 平均KV cache
+        # KV cache 随生成长度增长，取平均值
+        avg_kv_per_token = kv_cache_bytes / generated_length if generated_length > 0 else 0
+        total_bytes = model_memory_bytes + avg_kv_per_token
+
+        total_tb = total_bytes / 1e12
+        time_seconds = decode_time_ms / 1000
+
+        return total_tb / time_seconds
+
     def _determine_bottleneck(
         self,
         mfu: float,
@@ -459,6 +551,10 @@ def calculate_mfu(
     return {
         "mfu": result.mfu,
         "memory_bandwidth_utilization": result.memory_bandwidth_utilization,
+        "prefill_mfu": result.prefill_mfu,
+        "prefill_bandwidth_utilization": result.prefill_bandwidth_utilization,
+        "decode_mfu": result.decode_mfu,
+        "decode_bandwidth_utilization": result.decode_bandwidth_utilization,
         "theoretical_flops": result.theoretical_flops,
         "actual_flops": result.actual_flops,
         "peak_flops": result.peak_flops,

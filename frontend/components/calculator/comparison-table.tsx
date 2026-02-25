@@ -39,6 +39,10 @@ export function ComparisonTable() {
       "TPOT (ms)",
       "MFU (%)",
       "Memory Bandwidth Utilization (%)",
+      "Prefill MFU (%)",
+      "Prefill Bandwidth Utilization (%)",
+      "Decode MFU (%)",
+      "Decode Bandwidth Utilization (%)",
       "Bottleneck Type",
       "Actual TFLOPS",
       "Theoretical TFLOPS",
@@ -58,6 +62,10 @@ export function ComparisonTable() {
       r.input.tpot_ms,
       r.mfu,
       r.memory_bandwidth_utilization,
+      r.prefill_mfu,
+      r.prefill_bandwidth_utilization,
+      r.decode_mfu,
+      r.decode_bandwidth_utilization,
       r.bottleneck_type,
       r.actual_flops,
       r.theoretical_flops,
@@ -120,12 +128,25 @@ export function ComparisonTable() {
                 <TableHead className="min-w-[120px]">{t("hardware")}</TableHead>
                 <TableHead className="min-w-[120px]">{t("model")}</TableHead>
                 <TableHead>{t("precision")}</TableHead>
-                <TableHead className="text-right">{t("mfu")}</TableHead>
-                <TableHead className="text-right">BW</TableHead>
+                <TableHead className="text-right" colSpan={2}>Prefill</TableHead>
+                <TableHead className="text-right" colSpan={2}>Decode</TableHead>
                 <TableHead>{t("bottleneck")}</TableHead>
                 <TableHead className="text-right">Ctx</TableHead>
                 <TableHead className="text-right">BS</TableHead>
                 <TableHead className="w-[50px]" />
+              </TableRow>
+              <TableRow>
+                <TableHead></TableHead>
+                <TableHead></TableHead>
+                <TableHead></TableHead>
+                <TableHead className="text-right text-xs text-muted-foreground">MFU%</TableHead>
+                <TableHead className="text-right text-xs text-muted-foreground">BW%</TableHead>
+                <TableHead className="text-right text-xs text-muted-foreground">MFU%</TableHead>
+                <TableHead className="text-right text-xs text-muted-foreground">BW%</TableHead>
+                <TableHead></TableHead>
+                <TableHead></TableHead>
+                <TableHead></TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -140,11 +161,19 @@ export function ComparisonTable() {
                       {result.input.precision}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {result.mfu.toFixed(2)}%
+                  {/* Prefill */}
+                  <TableCell className="text-right font-mono text-xs">
+                    {result.prefill_mfu.toFixed(2)}
                   </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {result.memory_bandwidth_utilization.toFixed(2)}%
+                  <TableCell className="text-right font-mono text-xs">
+                    {result.prefill_bandwidth_utilization.toFixed(2)}
+                  </TableCell>
+                  {/* Decode */}
+                  <TableCell className="text-right font-mono text-xs">
+                    {result.decode_mfu.toFixed(2)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs">
+                    {result.decode_bandwidth_utilization.toFixed(2)}
                   </TableCell>
                   <TableCell>
                     <Badge

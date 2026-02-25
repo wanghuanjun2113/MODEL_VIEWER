@@ -206,15 +206,21 @@ export function calculateMFU(
   // Total theoretical FLOPs
   const totalFlops = prefillFlops + totalDecodeFlops;
 
-  // Calculate actual time spent
+  // Calculate time for each phase
   const prefillTime = input.first_token_latency_ms / 1000; // Convert to seconds
   const decodeTime = (input.tpot_ms * input.generated_length) / 1000;
   const totalTime = prefillTime + decodeTime;
 
-  // Calculate actual TFLOPS achieved
-  const actualTflops = totalFlops / 1e12 / totalTime;
+  // Calculate Prefill MFU
+  const prefillActualTflops = prefillFlops / 1e12 / prefillTime;
+  const prefillMfu = (prefillActualTflops / peakTflops) * 100;
 
-  // Calculate MFU
+  // Calculate Decode MFU
+  const decodeActualTflops = totalDecodeFlops / 1e12 / decodeTime;
+  const decodeMfu = (decodeActualTflops / peakTflops) * 100;
+
+  // Calculate total MFU
+  const actualTflops = totalFlops / 1e12 / totalTime;
   const mfu = (actualTflops / peakTflops) * 100;
 
   // Calculate memory bandwidth utilization
@@ -232,7 +238,19 @@ export function calculateMFU(
     input.attention_precision as Precision
   );
 
-  // Memory read per token during decode (simplified: model weights + KV cache)
+  // Prefill bandwidth utilization (mainly reading model weights)
+  const prefillBandwidth = modelSizeGB / prefillTime; // GB/s
+  const prefillBandwidthUtilization =
+    (prefillBandwidth / (hardware.memory_bandwidth_tbps * input.gpu_count * 1000)) * 100;
+
+  // Decode bandwidth utilization (model weights + average KV cache per token)
+  const avgKvPerToken = kvCacheSizeGB / input.generated_length;
+  const decodeMemoryPerToken = modelSizeGB + avgKvPerToken;
+  const decodeBandwidth = decodeMemoryPerToken / (input.tpot_ms / 1000); // GB/s
+  const decodeBandwidthUtilization =
+    (decodeBandwidth / (hardware.memory_bandwidth_tbps * input.gpu_count * 1000)) * 100;
+
+  // Total memory bandwidth utilization
   const memoryReadPerToken = modelSizeGB + kvCacheSizeGB / input.generated_length;
   const requiredBandwidth = memoryReadPerToken / (input.tpot_ms / 1000);
   const memoryBandwidthUtilization =
@@ -263,8 +281,16 @@ export function calculateMFU(
     input,
     hardware,
     model,
+    // 总体指标
     mfu: Math.min(mfu, 100),
     memory_bandwidth_utilization: Math.min(memoryBandwidthUtilization, 100),
+    // Prefill 阶段指标
+    prefill_mfu: Math.min(prefillMfu, 100),
+    prefill_bandwidth_utilization: Math.min(prefillBandwidthUtilization, 100),
+    // Decode 阶段指标
+    decode_mfu: Math.min(decodeMfu, 100),
+    decode_bandwidth_utilization: Math.min(decodeBandwidthUtilization, 100),
+    // 其他指标
     theoretical_flops: totalFlops / 1e12,
     actual_flops: actualTflops,
     peak_flops: peakTflops,

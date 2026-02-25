@@ -1,6 +1,6 @@
 """数据库模型定义"""
 
-from sqlalchemy import Column, Float, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Float, Integer, String, DateTime, Boolean, JSON, Text
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -62,3 +62,45 @@ class Model(Base):
     # 时间戳
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class CalculationHistory(Base):
+    """MFU计算历史记录"""
+
+    __tablename__ = "calculation_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # 关联的硬件和模型
+    hardware_id = Column(Integer, nullable=False, index=True)
+    model_id = Column(Integer, nullable=False, index=True)
+
+    # 输入参数 (JSON 格式存储)
+    input_params = Column(JSON, nullable=False)
+
+    # 计算结果 (JSON 格式存储)
+    result = Column(JSON, nullable=False)
+
+    # 时间戳
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class ConcurrencyHistory(Base):
+    """并发计算历史记录"""
+
+    __tablename__ = "concurrency_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # 关联的硬件和模型
+    hardware_id = Column(Integer, nullable=False, index=True)
+    model_id = Column(Integer, nullable=False, index=True)
+
+    # 输入参数 (JSON 格式存储)
+    input_params = Column(JSON, nullable=False)
+
+    # 计算结果 (JSON 格式存储)
+    result = Column(JSON, nullable=False)
+
+    # 时间戳
+    created_at = Column(DateTime, server_default=func.now())

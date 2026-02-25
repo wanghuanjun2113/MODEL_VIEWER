@@ -2,9 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ..database import get_db
+from ..models import ConcurrencyHistory
 from ..crud import hardware as hardware_crud
 from ..crud import model as model_crud
 from ..schemas import (
@@ -12,6 +13,7 @@ from ..schemas import (
     ConcurrencyResponse,
     ConcurrencyResult,
     MemoryBreakdown,
+    ConcurrencyHistoryResponse,
 )
 
 
@@ -85,7 +87,23 @@ def calculate_concurrency(input_data: ConcurrencyInput, db: Session = Depends(ge
             input_data.framework_overhead_gb
         )
 
-        # 5. 构建响应
+        # 5. 保存计算历史
+        input_params = {
+            "gpu_count": input_data.gpu_count,
+            "context_length": input_data.context_length,
+            "precision": input_data.precision.value,
+            "framework_overhead_gb": input_data.framework_overhead_gb,
+        }
+        history = ConcurrencyHistory(
+            hardware_id=input_data.hardware_id,
+            model_id=input_data.model_id,
+            input_params=input_params,
+            result=result,
+        )
+        db.add(history)
+        db.commit()
+
+        # 6. 构建响应
         return ConcurrencyResponse(
             success=True,
             result=ConcurrencyResult(
@@ -186,3 +204,37 @@ def calculate_concurrency_logic(
         "hardware_memory_gb": round(total_memory_gb, 4),
         "available_memory_gb": round(available_memory_gb, 4),
     }
+
+
+@router.get("/concurrency/history", response_model=List[ConcurrencyHistoryResponse])
+def get_concurrency_history(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """获取并发计算历史记录"""
+    history = db.query(ConcurrencyHistory)\
+        .order_by(ConcurrencyHistory.created_at.desc())\
+        .offset(offset)\
+        .limit(limit)\
+        .all()
+    return history
+
+
+@router.delete("/concurrency/history/{history_id}")
+def delete_concurrency_history(history_id: int, db: Session = Depends(get_db)):
+    """删除并发计算历史记录"""
+    history = db.query(ConcurrencyHistory).filter(ConcurrencyHistory.id == history_id).first()
+    if not history:
+        raise HTTPException(status_code=404, detail="History not found")
+    db.delete(history)
+    db.commit()
+    return {"message": "History deleted successfully"}
+
+
+@router.delete("/concurrency/history")
+def clear_concurrency_history(db: Session = Depends(get_db)):
+    """清空所有并发计算历史记录"""
+    db.query(ConcurrencyHistory).delete()
+    db.commit()
+    return {"message": "All history cleared successfully"}

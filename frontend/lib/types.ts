@@ -68,10 +68,19 @@ export interface CalculationResult {
   input: CalculationInput;
   hardware: Hardware;
   model: Model;
+  // 总体指标
   mfu: number;
   memory_bandwidth_utilization: number;
+  // Prefill 阶段指标
+  prefill_mfu: number;
+  prefill_bandwidth_utilization: number;
+  // Decode 阶段指标
+  decode_mfu: number;
+  decode_bandwidth_utilization: number;
+  // 其他指标
   theoretical_flops: number;
   actual_flops: number;
+  peak_flops: number;
   bottleneck_type: BottleneckType;
   prefill_flops: number;
   decode_flops: number;
